@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prompt and Paint!</title>
+  </head>
+  <body>
+    <h1>Prompt and Paint!</h1>
+    <div id="game">
+      <form hx-get="/create-room" hx-target="#game" hx-swap="outerHTML">
+        <label for="create-room">Create Room</label>
+        <button type="submit" id="create-room">Create Room</button>
+      </form>
+      <form hx-get="/join-room" hx-target="#game" hx-swap="outerHTML">
+        <label for="room-id">Join Room</label>
+        <input type="text" id="room-id" name="room-id" required />
+        <button type="submit">Join Room</button>
+      </form>
+    </div>
+  </body>
+  <script src="https://unpkg.com/htmx.org@2.0.0"></script>
+  <script src="https://unpkg.com/htmx-ext-ws@2.0.0/ws.js"></script>
+</html>

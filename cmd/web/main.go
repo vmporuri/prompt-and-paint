@@ -3,10 +3,15 @@ package main
 import (
 	"log"
 	"net/http"
+
+	"github.com/olahol/melody"
 )
 
 func main() {
 	mux := http.NewServeMux()
-	registerRoutes(mux)
+	m := melody.New()
+
+	registerRoutes(mux, m)
+	registerWebsocketHandlers(m)
 	log.Fatal(http.ListenAndServe(":3000", mux))
 }
