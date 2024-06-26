@@ -1,0 +1,16 @@
+name: prompt-and-paint
+
+services:
+  redis:
+    image: redis:7.4-rc-alpine
+
+  go:
+    build: .
+    image: vmporuri/prompt-and-paint
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    ports:
+      - "3000:3000"
+    depends_on:
+      - redis
