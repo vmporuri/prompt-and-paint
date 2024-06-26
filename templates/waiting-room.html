@@ -1,16 +1,9 @@
-<div id="game" hx-ext="ws" ws-connect="/game">
-  <h2>ID: {{ .RoomID }}</h2>
-  <form id="username-form" ws-send>
-    <input type="hidden" id="event" name="event" value="set-username" />
-    <label for="username">Enter Username:</label>
-    <input type="text" id="username" name="msg" required />
-    <button type="submit">Submit Username</button>
-  </form>
+<div id="game">
   <h2>Players:</h2>
   <ul></ul>
-  {{ if .IsHost }}
-  <form id="start-button" ws-send>
-    <button type="submit">Start Game</button>
+  <form id="ready" ws-send>
+    <input type="hidden" name="event" value="ready" />
+    <input type="hidden" name="msg" value="ready" />
+    <button type="submit">I'm Ready!</button>
   </form>
-  {{ end }}
 </div>
