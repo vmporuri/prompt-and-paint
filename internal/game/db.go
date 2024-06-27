@@ -2,9 +2,7 @@ package game
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -12,10 +10,12 @@ import (
 
 var (
 	ctx = context.Background()
-	rdb = redis.NewClient(&redis.Options{
-		Addr: fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")),
-	})
+	rdb *redis.Client
 )
+
+func SetupDBConnection(redisConn *redis.Client) {
+	rdb = redisConn
+}
 
 func subscribeRoom(room *Room) {
 	room.Pubsub = rdb.Subscribe(ctx, room.ID)

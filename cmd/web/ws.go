@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -12,6 +13,13 @@ import (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
+}
+
+func setupWSOriginCheck(cfg *Config) {
+	upgrader.CheckOrigin = func(r *http.Request) bool {
+		origin := r.Header.Get("origin")
+		return origin == fmt.Sprintf("http://%s:%s", cfg.Server.Host, cfg.Server.Port)
+	}
 }
 
 func handleWS(w http.ResponseWriter, r *http.Request) {

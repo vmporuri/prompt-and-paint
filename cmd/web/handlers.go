@@ -8,7 +8,12 @@ import (
 )
 
 func registerRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
 		tmpl, err := template.ParseFiles(filepath.Join("templates", "index.html"))
 		if err != nil {
 			log.Fatalf("Error parsing template: %v", err)
@@ -20,6 +25,11 @@ func registerRoutes(mux *http.ServeMux) {
 	})
 
 	mux.HandleFunc("/game", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
 		handleWS(w, r)
 	})
 }

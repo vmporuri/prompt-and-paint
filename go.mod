@@ -6,6 +6,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/lithammer/shortuuid v3.0.0+incompatible
 	github.com/redis/go-redis/v9 v9.5.3
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
