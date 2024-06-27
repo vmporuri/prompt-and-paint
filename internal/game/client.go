@@ -24,20 +24,6 @@ type GameMessage struct {
 	Msg     string         `json:"msg"`
 }
 
-type gameEvent string
-
-const (
-	create   gameEvent = "create-room"
-	join     gameEvent = "join-room"
-	username gameEvent = "set-username"
-	ready    gameEvent = "ready"
-)
-
-const (
-	newPlayerList string = "new-player-list"
-	enterGame     string = "game-room"
-)
-
 func DispatchGameEvent(client *Client, gameMsg *GameMessage) {
 	switch gameMsg.Event {
 	case create:
@@ -61,7 +47,7 @@ func (c *Client) readPump() {
 		event := payload[0]
 		msg := payload[1]
 
-		switch event {
+		switch gameEvent(event) {
 		case newPlayerList:
 			c.updatePlayerList([]byte(msg))
 		case enterGame:
@@ -82,12 +68,13 @@ func (c *Client) handleCreate() {
 }
 
 func (client *Client) handleJoin(gameMsg *GameMessage) {
-	room, exists := roomList[gameMsg.Msg]
+	roomID := gameMsg.Msg
+	exists := checkMembershipRedisSet(roomList, roomID)
 	if !exists {
 		log.Printf("Room %s does not exist", gameMsg.Msg)
 		return
 	}
-	client.RoomID = room.ID
+	client.RoomID = roomID
 	subscribeClient(client)
 
 	err := client.Conn.WriteMessage(websocket.TextMessage, generateUsername())

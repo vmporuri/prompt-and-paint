@@ -47,3 +47,18 @@ func setRedisKey(key string, value any) {
 		log.Println("Could not store key")
 	}
 }
+
+func addToRedisSet(key string, member any) {
+	err := rdb.SAdd(ctx, key, member).Err()
+	if err != nil {
+		log.Println("Could not add to set")
+	}
+}
+
+func checkMembershipRedisSet(key string, member any) bool {
+	isMember, err := rdb.SIsMember(ctx, key, member).Result()
+	if err != nil {
+		log.Println("Could not check set membership")
+	}
+	return isMember
+}

@@ -17,12 +17,7 @@ type Room struct {
 	Pubsub     *redis.PubSub
 }
 
-const (
-	newUser   string = "new-user"
-	userReady string = "ready"
-)
-
-var roomList = make(map[string]*Room, 0)
+const roomList string = "roomList"
 
 func createRoom() *Room {
 	room := &Room{
@@ -31,7 +26,7 @@ func createRoom() *Room {
 		ReadyCount: 0,
 		Mutex:      &sync.RWMutex{},
 	}
-	roomList[room.ID] = room
+	addToRedisSet(roomList, room.ID)
 	subscribeRoom(room)
 	return room
 }
@@ -47,7 +42,7 @@ func (r *Room) readPump() {
 		event := payload[0]
 		msg := payload[1]
 
-		switch event {
+		switch gameEvent(event) {
 		case newUser:
 			r.addUser(msg)
 		case userReady:
