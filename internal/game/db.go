@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -37,5 +38,12 @@ func publishRoomMessage(room *Room, msg []byte) {
 	err := rdb.Publish(ctx, room.ID, msg).Err()
 	if err != nil {
 		log.Println("Could not publish room message")
+	}
+}
+
+func setRedisKey(key string, value any) {
+	err := rdb.Set(ctx, key, value, time.Hour).Err()
+	if err != nil {
+		log.Println("Could not store key")
 	}
 }

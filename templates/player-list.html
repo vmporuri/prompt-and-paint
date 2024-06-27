@@ -1,5 +1,5 @@
 <ul id="player-list">
-  {{ range $player := .Players }}
+  {{ range $_, $player := .Players }}
   <li>{{ $player }}</li>
   {{ end }}
 </ul>

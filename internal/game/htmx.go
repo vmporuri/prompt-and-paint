@@ -26,12 +26,18 @@ func generateUsername() []byte {
 	return generateTemplate(nil, filepath.Join("templates", "username.html"), nil)
 }
 
-func generateWaitingRoom(client *Client) []byte {
-	return generateTemplate(nil, filepath.Join("templates", "waiting-room.html"), client)
+func generateWaitingPage(client *Client) []byte {
+	return generateTemplate(nil, filepath.Join("templates", "waiting-page.html"), client)
 }
 
 func generatePlayerList(room *Room) []byte {
 	buf := &bytes.Buffer{}
 	buf.Write([]byte("new-player-list:"))
-	return generateTemplate(buf, filepath.Join("templates", "player-list.html"), *room)
+	return generateTemplate(buf, filepath.Join("templates", "player-list.html"), room)
+}
+
+func generateGamePage(room *Room) []byte {
+	buf := &bytes.Buffer{}
+	buf.Write([]byte("game-room:"))
+	return generateTemplate(buf, filepath.Join("templates", "game-page.html"), room)
 }
