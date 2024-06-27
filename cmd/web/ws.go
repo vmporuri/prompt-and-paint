@@ -2,9 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 
 	"github.com/gorilla/websocket"
 	"github.com/vmporuri/prompt-and-paint/internal/game"
@@ -17,8 +17,11 @@ var upgrader = websocket.Upgrader{
 
 func setupWSOriginCheck(cfg *Config) {
 	upgrader.CheckOrigin = func(r *http.Request) bool {
-		origin := r.Header.Get("origin")
-		return origin == fmt.Sprintf("http://%s:%s", cfg.Server.Host, cfg.Server.Port)
+		origin, err := url.Parse(r.Header.Get("origin"))
+		if err != nil {
+			return false
+		}
+		return origin.Hostname() == cfg.Server.Host
 	}
 }
 
@@ -30,7 +33,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	defer conn.Close()
-	client := &game.Client{Conn: conn}
+	client := game.NewClient(conn)
 
 	for {
 		_, p, err := conn.ReadMessage()

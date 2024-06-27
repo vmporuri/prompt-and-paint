@@ -1,13 +1,19 @@
 name: prompt-and-paint
 
 services:
+  haproxy:
+    image: haproxy:3.0-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./config/haproxy:/usr/local/etc/haproxy
+
   redis:
     image: redis:7.4-rc-alpine
 
   go:
     build: .
     image: vmporuri/prompt-and-paint
-    ports:
-      - "3000:3000"
     depends_on:
+      - haproxy
       - redis

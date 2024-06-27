@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/gorilla/websocket"
 	"github.com/lithammer/shortuuid"
@@ -16,12 +17,17 @@ type Client struct {
 	Username string
 	RoomID   string
 	Pubsub   *redis.PubSub
+	Mutex    *sync.RWMutex
 }
 
 type GameMessage struct {
 	Headers map[string]any `json:"HEADERS"`
 	Event   gameEvent      `json:"event"`
 	Msg     string         `json:"msg"`
+}
+
+func NewClient(conn *websocket.Conn) *Client {
+	return &Client{Conn: conn, Mutex: &sync.RWMutex{}}
 }
 
 func DispatchGameEvent(client *Client, gameMsg *GameMessage) {
@@ -58,7 +64,9 @@ func (c *Client) readPump() {
 
 func (c *Client) handleCreate() {
 	room := createRoom()
+	c.Mutex.Lock()
 	c.RoomID = room.ID
+	c.Mutex.Unlock()
 	subscribeClient(c)
 
 	err := c.Conn.WriteMessage(websocket.TextMessage, generateUsername())
@@ -67,25 +75,29 @@ func (c *Client) handleCreate() {
 	}
 }
 
-func (client *Client) handleJoin(gameMsg *GameMessage) {
+func (c *Client) handleJoin(gameMsg *GameMessage) {
 	roomID := gameMsg.Msg
 	exists := checkMembershipRedisSet(roomList, roomID)
 	if !exists {
 		log.Printf("Room %s does not exist", gameMsg.Msg)
 		return
 	}
-	client.RoomID = roomID
-	subscribeClient(client)
+	c.Mutex.Lock()
+	c.RoomID = roomID
+	c.Mutex.Unlock()
+	subscribeClient(c)
 
-	err := client.Conn.WriteMessage(websocket.TextMessage, generateUsername())
+	err := c.Conn.WriteMessage(websocket.TextMessage, generateUsername())
 	if err != nil {
 		log.Println("Could not send username template")
 	}
 }
 
 func (c *Client) handleUsername(gameMsg *GameMessage) {
+	c.Mutex.Lock()
 	c.UserID = shortuuid.New()
 	c.Username = gameMsg.Msg
+	c.Mutex.Unlock()
 	publishClientMessage(c, fmt.Sprintf("new-user:%s-%s", c.UserID, c.Username))
 	err := c.Conn.WriteMessage(websocket.TextMessage, generateWaitingPage(c))
 	if err != nil {
