@@ -1,6 +1,7 @@
 <div id="game">
+  <h2>Room Code: {{ .RoomID }}</h2>
   <h2>Players:</h2>
-  <ul></ul>
+  <ul id="player-list"></ul>
   <form id="ready" ws-send>
     <input type="hidden" name="event" value="ready" />
     <input type="hidden" name="msg" value="ready" />

@@ -1,63 +1,42 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"html/template"
 	"log"
-	"path/filepath"
+	"net/http"
 
-	"github.com/olahol/melody"
+	"github.com/gorilla/websocket"
+	"github.com/vmporuri/prompt-and-paint/internal/game"
 )
 
-type websocketMessage struct {
-	Headers map[string]any `json:"HEADERS"`
-	Event   websocketEvent `json:"event"`
-	Msg     string         `json:"msg"`
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
 }
 
-type websocketEvent string
-
-const (
-	setUsername websocketEvent = "set-username"
-	ready       websocketEvent = "ready"
-)
-
-func registerWebsocketHandlers(m *melody.Melody) {
-	m.HandleConnect(handleWSConnection)
-
-	m.HandleMessage(handleGameMessage)
-}
-
-func handleWSConnection(s *melody.Session) {
-	log.Println("New connection!")
-}
-
-func handleGameMessage(s *melody.Session, msg []byte) {
-	var wsMsg websocketMessage
-	err := json.Unmarshal(msg, &wsMsg)
+func handleWS(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
+		return
 	}
 
-	switch wsMsg.Event {
-	case setUsername:
-		s.Set("username", wsMsg.Msg)
-		createRoom(s)
-		log.Println("User joined game.")
+	defer conn.Close()
+	client := &game.Client{Conn: conn}
 
-		waitingRoom := &bytes.Buffer{}
-		tmpl, err := template.ParseFiles(filepath.Join("templates", "waiting-room.html"))
+	for {
+		_, p, err := conn.ReadMessage()
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		var gameMsg game.GameMessage
+		err = json.Unmarshal(p, &gameMsg)
 		if err != nil {
 			log.Println(err)
 		}
-		err = tmpl.Execute(waitingRoom, nil)
-		if err != nil {
-			log.Println(err)
-		}
-		err = s.Write(waitingRoom.Bytes())
-		if err != nil {
-			log.Println(err)
-		}
+
+		game.DispatchGameEvent(client, &gameMsg)
 	}
 }

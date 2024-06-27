@@ -1,4 +1,4 @@
-FROM golang:1.23-rc-alpine
+FROM golang:1.22.4-alpine
 WORKDIR /app
 RUN apk update && \
     apk add --no-cache make=4.4.1-r2 && \
@@ -10,4 +10,4 @@ COPY . /app
 RUN make
 EXPOSE 3000
 USER gouser:gouser
-CMD [ "make", "run" ]
+CMD [ "./bin/app" ]

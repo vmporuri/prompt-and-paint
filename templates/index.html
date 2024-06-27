@@ -10,9 +10,14 @@
     <div id="ws" hx-ext="ws" ws-connect="/game">
       <div id="game">
         <form ws-send>
-          <input type="hidden" id="event" name="event" value="set-username" />
-          <label for="username">Enter Username:</label>
-          <input type="text" id="username" name="msg" required />
+          <input type="hidden" id="event" name="event" value="create-room" />
+          <label for="create-room">Create New Game:</label>
+          <button type="submit" id="create-room">Create Game</button>
+        </form>
+        <form ws-send>
+          <input type="hidden" id="event" name="event" value="join-room" />
+          <label for="room-code">Enter Room Code:</label>
+          <input type="text" id="room-code" name="msg" required />
           <button type="submit">Join Game</button>
         </form>
       </div>
