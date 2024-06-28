@@ -64,6 +64,10 @@ func (r *Room) updateReadyCount() {
 	r.ReadyCount++
 	r.Mutex.Unlock()
 	if r.ReadyCount > 0 && r.ReadyCount == len(r.Players) {
-		publishRoomMessage(r, generateGamePage(r))
+		r.Mutex.Lock()
+		r.ReadyCount = 0
+		r.Mutex.Unlock()
+		gpd := &gamePageData{Question: generateQuestion()}
+		publishRoomMessage(r, generateGamePage(gpd))
 	}
 }

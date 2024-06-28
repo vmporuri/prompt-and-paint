@@ -14,6 +14,6 @@ services:
   go:
     build: .
     image: vmporuri/prompt-and-paint
+    env_file: "api-key.env"
     depends_on:
-      - haproxy
       - redis

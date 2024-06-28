@@ -7,6 +7,10 @@ import (
 	"path/filepath"
 )
 
+type gamePageData struct {
+	Question string
+}
+
 func generateTemplate(buf *bytes.Buffer, path string, data any) []byte {
 	if buf == nil {
 		buf = &bytes.Buffer{}
@@ -36,8 +40,8 @@ func generatePlayerList(room *Room) []byte {
 	return generateTemplate(buf, filepath.Join("templates", "player-list.html"), room)
 }
 
-func generateGamePage(room *Room) []byte {
+func generateGamePage(gpd *gamePageData) []byte {
 	buf := &bytes.Buffer{}
 	buf.Write([]byte("game-room:"))
-	return generateTemplate(buf, filepath.Join("templates", "game-page.html"), room)
+	return generateTemplate(buf, filepath.Join("templates", "game-page.html"), gpd)
 }
