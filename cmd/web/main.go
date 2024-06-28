@@ -16,5 +16,6 @@ func main() {
 	setupWSOriginCheck(&cfg)
 	game.SetupDBConnection(createDBConnection(&cfg))
 
+	log.Printf("Server listening on :%s", cfg.Server.Port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", cfg.Server.Port), mux))
 }
