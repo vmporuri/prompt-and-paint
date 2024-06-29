@@ -1,9 +1,8 @@
 package game
 
 import (
-	"fmt"
+	"encoding/json"
 	"log"
-	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -49,15 +48,17 @@ func (c *Client) readPump() {
 	ch := c.Pubsub.Channel()
 
 	for msg := range ch {
-		payload := strings.Split(msg.Payload, ":")
-		event := payload[0]
-		msg := payload[1]
+		psEvent := PSMessage{}
+		err := json.Unmarshal([]byte(msg.Payload), &psEvent)
+		if err != nil {
+			log.Println("Could not unmarshal pubsub message")
+		}
 
-		switch gameEvent(event) {
+		switch psEvent.Event {
 		case newPlayerList:
-			c.updatePlayerList([]byte(msg))
+			c.updatePlayerList([]byte(psEvent.Msg))
 		case enterGame:
-			c.loadGame([]byte(msg))
+			c.loadGame([]byte(psEvent.Msg))
 		}
 	}
 }
@@ -98,8 +99,15 @@ func (c *Client) handleUsername(gameMsg *GameMessage) {
 	c.UserID = shortuuid.New()
 	c.Username = gameMsg.Msg
 	c.Mutex.Unlock()
-	publishClientMessage(c, fmt.Sprintf("new-user:%s-%s", c.UserID, c.Username))
-	err := c.Conn.WriteMessage(websocket.TextMessage, generateWaitingPage(c))
+	newUserMsg, err := json.Marshal(
+		newPSMessageWithOptMsg(newUser, c.UserID, c.Username),
+	)
+	if err != nil {
+		log.Println("Could not encode new user message")
+		return
+	}
+	publishClientMessage(c, newUserMsg)
+	err = c.Conn.WriteMessage(websocket.TextMessage, generateWaitingPage(c))
 	if err != nil {
 		log.Println("Could not send username template")
 	}
@@ -107,7 +115,12 @@ func (c *Client) handleUsername(gameMsg *GameMessage) {
 
 func (c *Client) handleReady() {
 	setRedisKey(c.UserID, ready)
-	publishClientMessage(c, fmt.Sprintf("ready:%s", c.UserID))
+	readyMsg, err := json.Marshal(newPSMessage(ready, c.UserID))
+	if err != nil {
+		log.Println("Could not encode new user message")
+		return
+	}
+	publishClientMessage(c, readyMsg)
 }
 
 func (c *Client) updatePlayerList(players []byte) {

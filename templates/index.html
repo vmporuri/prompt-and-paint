@@ -17,7 +17,7 @@
         <form ws-send>
           <input type="hidden" id="event" name="event" value="join-room" />
           <label for="room-code">Enter Room Code:</label>
-          <input type="text" id="room-code" name="msg" required />
+          <input type="text" id="room-code" name="msg" pattern="\w+" required />
           <button type="submit">Join Game</button>
         </form>
       </div>

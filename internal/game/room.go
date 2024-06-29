@@ -1,8 +1,8 @@
 package game
 
 import (
+	"encoding/json"
 	"log"
-	"strings"
 	"sync"
 
 	"github.com/lithammer/shortuuid"
@@ -37,26 +37,31 @@ func (r *Room) readPump() {
 	ch := r.Pubsub.Channel()
 
 	for msg := range ch {
-		log.Println(msg.Channel, msg.Payload)
-		payload := strings.Split(msg.Payload, ":")
-		event := payload[0]
-		msg := payload[1]
+		psEvent := PSMessage{}
+		err := json.Unmarshal([]byte(msg.Payload), &psEvent)
+		if err != nil {
+			log.Println("Could not unmarshal pubsub message")
+		}
 
-		switch gameEvent(event) {
+		switch psEvent.Event {
 		case newUser:
-			r.addUser(msg)
+			r.addUser(psEvent.Msg, psEvent.OptMsg)
 		case userReady:
 			r.updateReadyCount()
 		}
 	}
 }
 
-func (r *Room) addUser(msg string) {
-	user := strings.Split(msg, "-")
+func (r *Room) addUser(userID, username string) {
 	r.Mutex.Lock()
-	r.Players[user[0]] = user[1]
+	r.Players[userID] = username
 	r.Mutex.Unlock()
-	publishRoomMessage(r, generatePlayerList(r))
+	playerList, err := json.Marshal(newPSMessage(newPlayerList, string(generatePlayerList(r))))
+	if err != nil {
+		log.Println("Could not marshal new player list")
+		return
+	}
+	publishRoomMessage(r, playerList)
 }
 
 func (r *Room) updateReadyCount() {
@@ -68,6 +73,11 @@ func (r *Room) updateReadyCount() {
 		r.ReadyCount = 0
 		r.Mutex.Unlock()
 		gpd := &gamePageData{Question: generateQuestion()}
-		publishRoomMessage(r, generateGamePage(gpd))
+		gamePage, err := json.Marshal(newPSMessage(enterGame, string(generateGamePage(gpd))))
+		if err != nil {
+			log.Println("Could not marshal game page")
+			return
+		}
+		publishRoomMessage(r, gamePage)
 	}
 }
