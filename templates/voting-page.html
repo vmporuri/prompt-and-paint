@@ -1,0 +1,8 @@
+<div id="game">
+  <form id="ready" ws-send>
+    <input type="hidden" name="event" value="ready" />
+    {{ range $url := .URLs }}
+    <input type="radio" name="msg" />{{ $url }} {{ end }}
+    <button type="submit">Cast Vote</button>
+  </form>
+</div>

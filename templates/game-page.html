@@ -1,9 +1,9 @@
 <div id="game">
   <h2>{{ .Question }}</h2>
   <form id="answer" ws-send>
-    <input type="hidden" name="event" value="ready" />
-    <label for="answer">Enter Your Prompt:</label>
-    <textarea id="answer" name="msg"></textarea>
+    <input type="hidden" name="event" value="prompt" />
+    <label for="prompt">Enter Your Prompt:</label>
+    <textarea id="prompt" name="msg"></textarea>
     <button type="submit">Submit Prompt</button>
   </form>
 </div>

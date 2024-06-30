@@ -11,6 +11,8 @@ const (
 	enterGame     gameEvent = "game-room"
 	newUser       gameEvent = "new-user"
 	userReady     gameEvent = "ready"
+	prompt        gameEvent = "prompt"
+	votePage      gameEvent = "vote-page"
 )
 
 const CloseWS gameEvent = "close-ws"

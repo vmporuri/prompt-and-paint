@@ -50,6 +50,8 @@ func DispatchGameEvent(client *Client, gameMsg *GameMessage) {
 		client.handleUsername(gameMsg)
 	case ready:
 		client.handleReady()
+	case prompt:
+		client.handlePrompt(gameMsg)
 	case CloseWS:
 		client.handleClose()
 	}
@@ -74,6 +76,8 @@ func (c *Client) readPump() {
 				c.updatePlayerList([]byte(psEvent.Msg))
 			case enterGame:
 				c.loadGame([]byte(psEvent.Msg))
+			case votePage:
+				c.displayCandidates([]byte(psEvent.Msg))
 			}
 		case <-c.Ctx.Done():
 			return
@@ -121,7 +125,6 @@ func (c *Client) handleUsername(gameMsg *GameMessage) {
 }
 
 func (c *Client) handleReady() {
-	setRedisKey(c.Ctx, c.UserID, ready)
 	readyMsg, err := json.Marshal(newPSMessage(ready, c.UserID))
 	if err != nil {
 		log.Println("Could not encode new user message")
@@ -146,4 +149,22 @@ func (c *Client) handleClose() {
 	}
 	publishClientMessage(c, closeMsg)
 	c.Cancel()
+}
+
+func (c *Client) handlePrompt(gameMsg *GameMessage) {
+	err := setRedisHash(c.Ctx, c.UserID, string(prompt), gameMsg.Msg)
+	if err != nil {
+		log.Printf("Error storing user prompt: %v", err)
+		return
+	}
+	sentPrompt, err := json.Marshal(newPSMessage(prompt, gameMsg.Msg))
+	if err != nil {
+		log.Printf("Error encoding user prompt: %v", err)
+		return
+	}
+	publishClientMessage(c, sentPrompt)
+}
+
+func (c *Client) displayCandidates(candidates []byte) {
+	c.WriteChan <- candidates
 }

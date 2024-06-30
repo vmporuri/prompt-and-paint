@@ -80,3 +80,11 @@ func checkMembershipRedisSet(ctx context.Context, key string, member any) bool {
 	}
 	return isMember
 }
+
+func setRedisHash(ctx context.Context, hash, key string, value any) error {
+	return rdb.HSet(ctx, hash, key, value).Err()
+}
+
+func getRedisHash(ctx context.Context, hash, key string) (string, error) {
+	return rdb.HGet(ctx, hash, key).Result()
+}

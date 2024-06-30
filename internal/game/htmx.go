@@ -2,6 +2,7 @@ package game
 
 import (
 	"bytes"
+	"fmt"
 	"html/template"
 	"log"
 	"path/filepath"
@@ -9,6 +10,10 @@ import (
 
 type gamePageData struct {
 	Question string
+}
+
+type votingPageData struct {
+	URLs []string
 }
 
 func generateTemplate(buf *bytes.Buffer, path string, data any) []byte {
@@ -36,12 +41,18 @@ func generateWaitingPage(client *Client) []byte {
 
 func generatePlayerList(room *Room) []byte {
 	buf := &bytes.Buffer{}
-	buf.Write([]byte("new-player-list:"))
+	buf.Write([]byte(fmt.Sprintf("%s:", newPlayerList)))
 	return generateTemplate(buf, filepath.Join("templates", "player-list.html"), room)
 }
 
 func generateGamePage(gpd *gamePageData) []byte {
 	buf := &bytes.Buffer{}
-	buf.Write([]byte("game-room:"))
+	buf.Write([]byte(fmt.Sprintf("%s:", enterGame)))
 	return generateTemplate(buf, filepath.Join("templates", "game-page.html"), gpd)
+}
+
+func generateVotingPage(vpd *votingPageData) []byte {
+	buf := &bytes.Buffer{}
+	buf.Write([]byte(fmt.Sprintf("%s:", votePage)))
+	return generateTemplate(buf, filepath.Join("templates", "voting-page.html"), vpd)
 }
