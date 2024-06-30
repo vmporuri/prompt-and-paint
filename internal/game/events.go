@@ -12,3 +12,5 @@ const (
 	newUser       gameEvent = "new-user"
 	userReady     gameEvent = "ready"
 )
+
+const CloseWS gameEvent = "close-ws"

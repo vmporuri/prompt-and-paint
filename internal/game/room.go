@@ -1,6 +1,7 @@
 package game
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"sync"
@@ -13,20 +14,25 @@ type Room struct {
 	ID         string
 	Players    map[string]string
 	ReadyCount int
-	Mutex      *sync.RWMutex
 	Pubsub     *redis.PubSub
+	Mutex      *sync.RWMutex
+	Ctx        context.Context
+	Cancel     context.CancelFunc
 }
 
 const roomList string = "roomList"
 
 func createRoom() *Room {
+	ctx, cancel := context.WithCancel(context.Background())
 	room := &Room{
 		ID:         shortuuid.New(),
 		Players:    make(map[string]string),
 		ReadyCount: 0,
 		Mutex:      &sync.RWMutex{},
+		Ctx:        ctx,
+		Cancel:     cancel,
 	}
-	addToRedisSet(roomList, room.ID)
+	addToRedisSet(ctx, roomList, room.ID)
 	subscribeRoom(room)
 	return room
 }
@@ -36,18 +42,25 @@ func (r *Room) readPump() {
 
 	ch := r.Pubsub.Channel()
 
-	for msg := range ch {
-		psEvent := PSMessage{}
-		err := json.Unmarshal([]byte(msg.Payload), &psEvent)
-		if err != nil {
-			log.Println("Could not unmarshal pubsub message")
-		}
+	for {
+		select {
+		case msg := <-ch:
+			psEvent := PSMessage{}
+			err := json.Unmarshal([]byte(msg.Payload), &psEvent)
+			if err != nil {
+				log.Println("Could not unmarshal pubsub message")
+			}
 
-		switch psEvent.Event {
-		case newUser:
-			r.addUser(psEvent.Msg, psEvent.OptMsg)
-		case userReady:
-			r.updateReadyCount()
+			switch psEvent.Event {
+			case newUser:
+				r.addUser(psEvent.Msg, psEvent.OptMsg)
+			case userReady:
+				r.updateReadyCount()
+			case CloseWS:
+				r.disconnectUser(psEvent.Msg)
+			}
+		case <-r.Ctx.Done():
+			return
 		}
 	}
 }
@@ -72,7 +85,7 @@ func (r *Room) updateReadyCount() {
 		r.Mutex.Lock()
 		r.ReadyCount = 0
 		r.Mutex.Unlock()
-		gpd := &gamePageData{Question: generateQuestion()}
+		gpd := &gamePageData{Question: generateQuestion(r)}
 		gamePage, err := json.Marshal(newPSMessage(enterGame, string(generateGamePage(gpd))))
 		if err != nil {
 			log.Println("Could not marshal game page")
@@ -80,4 +93,13 @@ func (r *Room) updateReadyCount() {
 		}
 		publishRoomMessage(r, gamePage)
 	}
+}
+
+func (r *Room) disconnectUser(userID string) {
+	r.Mutex.Lock()
+	delete(r.Players, userID)
+	if len(r.Players) == 0 {
+		r.Cancel()
+	}
+	r.Mutex.Unlock()
 }

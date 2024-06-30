@@ -1,6 +1,7 @@
 package game
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"sync"
@@ -11,12 +12,15 @@ import (
 )
 
 type Client struct {
-	Conn     *websocket.Conn
-	UserID   string
-	Username string
-	RoomID   string
-	Pubsub   *redis.PubSub
-	Mutex    *sync.RWMutex
+	Conn      *websocket.Conn
+	UserID    string
+	Username  string
+	RoomID    string
+	Pubsub    *redis.PubSub
+	Mutex     *sync.RWMutex
+	WriteChan chan []byte
+	Ctx       context.Context
+	Cancel    context.CancelFunc
 }
 
 type GameMessage struct {
@@ -26,7 +30,14 @@ type GameMessage struct {
 }
 
 func NewClient(conn *websocket.Conn) *Client {
-	return &Client{Conn: conn, Mutex: &sync.RWMutex{}}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Client{
+		Conn:      conn,
+		WriteChan: make(chan []byte),
+		Mutex:     &sync.RWMutex{},
+		Ctx:       ctx,
+		Cancel:    cancel,
+	}
 }
 
 func DispatchGameEvent(client *Client, gameMsg *GameMessage) {
@@ -39,6 +50,8 @@ func DispatchGameEvent(client *Client, gameMsg *GameMessage) {
 		client.handleUsername(gameMsg)
 	case ready:
 		client.handleReady()
+	case CloseWS:
+		client.handleClose()
 	}
 }
 
@@ -47,18 +60,23 @@ func (c *Client) readPump() {
 
 	ch := c.Pubsub.Channel()
 
-	for msg := range ch {
-		psEvent := PSMessage{}
-		err := json.Unmarshal([]byte(msg.Payload), &psEvent)
-		if err != nil {
-			log.Println("Could not unmarshal pubsub message")
-		}
+	for {
+		select {
+		case msg := <-ch:
+			psEvent := PSMessage{}
+			err := json.Unmarshal([]byte(msg.Payload), &psEvent)
+			if err != nil {
+				log.Println("Could not unmarshal pubsub message")
+			}
 
-		switch psEvent.Event {
-		case newPlayerList:
-			c.updatePlayerList([]byte(psEvent.Msg))
-		case enterGame:
-			c.loadGame([]byte(psEvent.Msg))
+			switch psEvent.Event {
+			case newPlayerList:
+				c.updatePlayerList([]byte(psEvent.Msg))
+			case enterGame:
+				c.loadGame([]byte(psEvent.Msg))
+			}
+		case <-c.Ctx.Done():
+			return
 		}
 	}
 }
@@ -69,16 +87,12 @@ func (c *Client) handleCreate() {
 	c.RoomID = room.ID
 	c.Mutex.Unlock()
 	subscribeClient(c)
-
-	err := c.Conn.WriteMessage(websocket.TextMessage, generateUsername())
-	if err != nil {
-		log.Println("Could not send username template")
-	}
+	c.WriteChan <- generateUsername()
 }
 
 func (c *Client) handleJoin(gameMsg *GameMessage) {
 	roomID := gameMsg.Msg
-	exists := checkMembershipRedisSet(roomList, roomID)
+	exists := checkMembershipRedisSet(c.Ctx, roomList, roomID)
 	if !exists {
 		log.Printf("Room %s does not exist", gameMsg.Msg)
 		return
@@ -87,11 +101,7 @@ func (c *Client) handleJoin(gameMsg *GameMessage) {
 	c.RoomID = roomID
 	c.Mutex.Unlock()
 	subscribeClient(c)
-
-	err := c.Conn.WriteMessage(websocket.TextMessage, generateUsername())
-	if err != nil {
-		log.Println("Could not send username template")
-	}
+	c.WriteChan <- generateUsername()
 }
 
 func (c *Client) handleUsername(gameMsg *GameMessage) {
@@ -107,14 +117,11 @@ func (c *Client) handleUsername(gameMsg *GameMessage) {
 		return
 	}
 	publishClientMessage(c, newUserMsg)
-	err = c.Conn.WriteMessage(websocket.TextMessage, generateWaitingPage(c))
-	if err != nil {
-		log.Println("Could not send username template")
-	}
+	c.WriteChan <- generateWaitingPage(c)
 }
 
 func (c *Client) handleReady() {
-	setRedisKey(c.UserID, ready)
+	setRedisKey(c.Ctx, c.UserID, ready)
 	readyMsg, err := json.Marshal(newPSMessage(ready, c.UserID))
 	if err != nil {
 		log.Println("Could not encode new user message")
@@ -124,15 +131,19 @@ func (c *Client) handleReady() {
 }
 
 func (c *Client) updatePlayerList(players []byte) {
-	err := c.Conn.WriteMessage(websocket.TextMessage, players)
-	if err != nil {
-		log.Println("Could not send player-list template")
-	}
+	c.WriteChan <- players
 }
 
 func (c *Client) loadGame(gamePage []byte) {
-	err := c.Conn.WriteMessage(websocket.TextMessage, gamePage)
+	c.WriteChan <- gamePage
+}
+
+func (c *Client) handleClose() {
+	closeMsg, err := json.Marshal(newPSMessage(CloseWS, c.UserID))
 	if err != nil {
-		log.Println("Could not send game page template")
+		log.Println("Could not encode new user message")
+		return
 	}
+	publishClientMessage(c, closeMsg)
+	c.Cancel()
 }

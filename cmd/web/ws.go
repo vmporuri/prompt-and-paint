@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"net/url"
@@ -34,20 +33,27 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 
 	defer conn.Close()
 	client := game.NewClient(conn)
+	go writePump(client)
 
 	for {
-		_, p, err := conn.ReadMessage()
+		var gameMsg game.GameMessage
+		err := conn.ReadJSON(&gameMsg)
+		if err != nil {
+			log.Println(err)
+			game.DispatchGameEvent(client, &game.GameMessage{Event: game.CloseWS})
+			return
+		}
+
+		game.DispatchGameEvent(client, &gameMsg)
+	}
+}
+
+func writePump(client *game.Client) {
+	for msg := range client.WriteChan {
+		err := client.Conn.WriteMessage(websocket.TextMessage, msg)
 		if err != nil {
 			log.Println(err)
 			return
 		}
-
-		var gameMsg game.GameMessage
-		err = json.Unmarshal(p, &gameMsg)
-		if err != nil {
-			log.Println(err)
-		}
-
-		game.DispatchGameEvent(client, &gameMsg)
 	}
 }
