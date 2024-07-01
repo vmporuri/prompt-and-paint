@@ -72,7 +72,7 @@ func (c *Client) readPump() {
 			psEvent := PSMessage{}
 			err := json.Unmarshal([]byte(msg.Payload), &psEvent)
 			if err != nil {
-				log.Println("Could not unmarshal pubsub message")
+				log.Printf("Error unmarshalling pubsub message: %v", err)
 			}
 
 			switch psEvent.Event {
@@ -97,7 +97,11 @@ func (c *Client) handleCreate() {
 	c.RoomID = room.ID
 	c.Mutex.Unlock()
 	subscribeClient(c)
-	c.WriteChan <- generateUsername()
+	usernamePage, err := generateUsername()
+	if err != nil {
+		log.Printf("Error creating username page template: %v", err)
+	}
+	c.WriteChan <- usernamePage
 }
 
 func (c *Client) handleJoin(gameMsg *GameMessage) {
@@ -111,7 +115,11 @@ func (c *Client) handleJoin(gameMsg *GameMessage) {
 	c.RoomID = roomID
 	c.Mutex.Unlock()
 	subscribeClient(c)
-	c.WriteChan <- generateUsername()
+	usernamePage, err := generateUsername()
+	if err != nil {
+		log.Printf("Error creating username page template: %v", err)
+	}
+	c.WriteChan <- usernamePage
 }
 
 func (c *Client) handleUsername(gameMsg *GameMessage) {
@@ -123,17 +131,22 @@ func (c *Client) handleUsername(gameMsg *GameMessage) {
 		newPSMessageWithOptMsg(newUser, c.UserID, c.Username),
 	)
 	if err != nil {
-		log.Println("Could not encode new user message")
+		log.Printf("Error encoding new user message: %v", err)
 		return
 	}
 	publishClientMessage(c, newUserMsg)
-	c.WriteChan <- generateWaitingPage(c)
+	wpd := &waitingPageData{RoomID: c.RoomID}
+	waitingPage, err := generateWaitingPage(wpd)
+	if err != nil {
+		log.Printf("Error creating waiting page template: %v", err)
+	}
+	c.WriteChan <- waitingPage
 }
 
 func (c *Client) handleReady() {
 	readyMsg, err := json.Marshal(newPSMessage(ready, c.UserID))
 	if err != nil {
-		log.Println("Could not encode new user message")
+		log.Printf("Error encoding new user message: %v", err)
 		return
 	}
 	publishClientMessage(c, readyMsg)
@@ -165,7 +178,10 @@ func (c *Client) handlePrompt(gameMsg *GameMessage) {
 		return
 	}
 	ipd := &imagePreviewData{URL: url}
-	picturePreview := generatePicturePreview(ipd)
+	picturePreview, err := generatePicturePreview(ipd)
+	if err != nil {
+		log.Printf("Error creating picture preview template: %v", err)
+	}
 	c.WriteChan <- picturePreview
 }
 

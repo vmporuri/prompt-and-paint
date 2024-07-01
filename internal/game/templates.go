@@ -4,73 +4,55 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"log"
 	"path/filepath"
 )
 
-type gamePageData struct {
-	Question string
-}
-
-type votingPageData struct {
-	URLs []string
-}
-
-type imagePreviewData struct {
-	URL string
-}
-
-type leaderboardPageData struct {
-	Scores      map[string]int
-	Leaderboard map[string]int
-}
-
-func generateTemplate(buf *bytes.Buffer, path string, data any) []byte {
+func generateTemplate(buf *bytes.Buffer, path string, data any) ([]byte, error) {
 	if buf == nil {
 		buf = &bytes.Buffer{}
 	}
 	tmpl, err := template.ParseFiles(path)
 	if err != nil {
-		log.Println(err)
+		return nil, err
 	}
 	err = tmpl.Execute(buf, data)
 	if err != nil {
-		log.Println(err)
+		return nil, err
 	}
-	return buf.Bytes()
+	return buf.Bytes(), nil
 }
 
-func generateUsername() []byte {
+func generateUsername() ([]byte, error) {
 	return generateTemplate(nil, filepath.Join("templates", "username.html"), nil)
 }
 
-func generateWaitingPage(client *Client) []byte {
-	return generateTemplate(nil, filepath.Join("templates", "waiting-page.html"), client)
+func generateWaitingPage(wpd *waitingPageData) ([]byte, error) {
+	return generateTemplate(nil, filepath.Join("templates", "waiting-page.html"), wpd)
 }
 
-func generatePlayerList(room *Room) []byte {
+func generatePlayerList(pld *playerListData) ([]byte, error) {
 	buf := &bytes.Buffer{}
 	buf.Write([]byte(fmt.Sprintf("%s:", newPlayerList)))
-	return generateTemplate(buf, filepath.Join("templates", "player-list.html"), room)
+	return generateTemplate(buf, filepath.Join("templates", "player-list.html"), pld)
 }
 
-func generateGamePage(gpd *gamePageData) []byte {
+func generateGamePage(gpd *gamePageData) ([]byte, error) {
 	buf := &bytes.Buffer{}
 	buf.Write([]byte(fmt.Sprintf("%s:", enterGame)))
 	return generateTemplate(buf, filepath.Join("templates", "game-page.html"), gpd)
 }
 
-func generateVotingPage(vpd *votingPageData) []byte {
+func generateVotingPage(vpd *votingPageData) ([]byte, error) {
 	buf := &bytes.Buffer{}
 	buf.Write([]byte(fmt.Sprintf("%s:", votePage)))
 	return generateTemplate(buf, filepath.Join("templates", "voting-page.html"), vpd)
 }
 
-func generatePicturePreview(ipd *imagePreviewData) []byte {
+func generatePicturePreview(ipd *imagePreviewData) ([]byte, error) {
 	return generateTemplate(nil, filepath.Join("templates", "image-preview.html"), ipd)
 }
 
-func generateLeaderboardPage(lpd *leaderboardPageData) []byte {
+func generateLeaderboardPage(lpd *leaderboardPageData) ([]byte, error) {
 	buf := &bytes.Buffer{}
 	buf.Write([]byte(fmt.Sprintf("%s:", leaderboard)))
 	return generateTemplate(buf, filepath.Join("templates", "leaderboard.html"), lpd)

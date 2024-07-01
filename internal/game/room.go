@@ -56,7 +56,7 @@ func (r *Room) readPump() {
 			psEvent := PSMessage{}
 			err := json.Unmarshal([]byte(msg.Payload), &psEvent)
 			if err != nil {
-				log.Println("Could not unmarshal pubsub message")
+				log.Printf("Error unmarshalling pubsub message: %v", err)
 			}
 
 			switch psEvent.Event {
@@ -88,7 +88,13 @@ func (r *Room) addUser(userID, username string) {
 		return
 	}
 
-	playerList, err := json.Marshal(newPSMessage(newPlayerList, string(generatePlayerList(r))))
+	pld := &playerListData{Players: r.Players}
+	playerListBytes, err := generatePlayerList(pld)
+	if err != nil {
+		log.Printf("Error creating player list template: %v", err)
+		return
+	}
+	playerList, err := json.Marshal(newPSMessage(newPlayerList, string(playerListBytes)))
 	if err != nil {
 		log.Printf("Error marshalling new player list: %v", err)
 		delete(r.Players, userID)
@@ -103,9 +109,14 @@ func (r *Room) updateReadyCount() {
 	if r.ReadyCount > 0 && r.ReadyCount == len(r.Players) {
 		r.ReadyCount = 0
 		gpd := &gamePageData{Question: generateQuestion(r)}
-		gamePage, err := json.Marshal(newPSMessage(enterGame, string(generateGamePage(gpd))))
+		gamePageBytes, err := generateGamePage(gpd)
 		if err != nil {
-			log.Println("Could not marshal game page")
+			log.Printf("Error creating game page template: %v", err)
+			return
+		}
+		gamePage, err := json.Marshal(newPSMessage(enterGame, string(gamePageBytes)))
+		if err != nil {
+			log.Printf("Error marshalling game page: %v", err)
 			return
 		}
 		publishRoomMessage(r, gamePage)
@@ -161,9 +172,14 @@ func (r *Room) sendVotingPage() {
 		}
 
 		apd := &votingPageData{URLs: answers}
-		votingPage, err := json.Marshal(newPSMessage(votePage, string(generateVotingPage(apd))))
+		votingPageBytes, err := generateVotingPage(apd)
 		if err != nil {
-			log.Printf("Unable to marshal voting page data: %v", err)
+			log.Printf("Error creating voting page template: %v", err)
+			return
+		}
+		votingPage, err := json.Marshal(newPSMessage(votePage, string(votingPageBytes)))
+		if err != nil {
+			log.Printf("Error marshalling voting page data: %v", err)
 			return
 		}
 		publishRoomMessage(r, votingPage)
@@ -237,8 +253,13 @@ func (r *Room) countVotes() {
 
 func (r *Room) sendLeaderboard(scores map[string]int, lb map[string]int) {
 	lpd := &leaderboardPageData{Scores: scores, Leaderboard: lb}
+	leaderboardPageBytes, err := generateLeaderboardPage(lpd)
+	if err != nil {
+		log.Printf("Error creating leaderboard page template: %v", err)
+		return
+	}
 	leaderboardPage, err := json.Marshal(
-		newPSMessage(leaderboard, string(generateLeaderboardPage(lpd))),
+		newPSMessage(leaderboard, string(leaderboardPageBytes)),
 	)
 	if err != nil {
 		log.Printf("Error marshalling leaderboard page: %v", err)
