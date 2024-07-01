@@ -12,7 +12,9 @@ const (
 	newUser       gameEvent = "new-user"
 	userReady     gameEvent = "ready"
 	prompt        gameEvent = "prompt"
+	picture       gameEvent = "picture"
 	votePage      gameEvent = "vote-page"
+	pickPicture   gameEvent = "pick-picture"
 )
 
 const CloseWS gameEvent = "close-ws"

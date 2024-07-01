@@ -57,7 +57,7 @@ func (r *Room) readPump() {
 				go r.addUser(psEvent.Msg, psEvent.OptMsg)
 			case userReady:
 				go r.updateReadyCount()
-			case prompt:
+			case picture:
 				go r.handleUserSubmission()
 			case CloseWS:
 				go r.disconnectUser(psEvent.Msg)
@@ -120,7 +120,7 @@ func (r *Room) sendVotingPage() {
 
 		answers := make([]string, 0, len(r.Players))
 		for player := range r.Players {
-			ans, err := getRedisHash(r.Ctx, player, string(prompt))
+			ans, err := getRedisHash(r.Ctx, player, string(picture))
 			if err != nil {
 				log.Printf("Error fetching player answer: %v", err)
 				continue
@@ -132,7 +132,7 @@ func (r *Room) sendVotingPage() {
 		})
 
 		apd := &votingPageData{URLs: answers}
-		votingPage, err := json.Marshal(newPSMessage(enterGame, string(generateVotingPage(apd))))
+		votingPage, err := json.Marshal(newPSMessage(votePage, string(generateVotingPage(apd))))
 		if err != nil {
 			log.Printf("Unable to marshal voting page data: %v", err)
 			return

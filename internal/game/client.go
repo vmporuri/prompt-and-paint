@@ -52,6 +52,8 @@ func DispatchGameEvent(client *Client, gameMsg *GameMessage) {
 		client.handleReady()
 	case prompt:
 		client.handlePrompt(gameMsg)
+	case pickPicture:
+		client.handlePicture(gameMsg)
 	case CloseWS:
 		client.handleClose()
 	}
@@ -144,27 +146,39 @@ func (c *Client) loadGame(gamePage []byte) {
 func (c *Client) handleClose() {
 	closeMsg, err := json.Marshal(newPSMessage(CloseWS, c.UserID))
 	if err != nil {
-		log.Println("Could not encode new user message")
+		log.Printf("Error encoding close message: %v", err)
 		return
 	}
+	log.Printf("User %s disconnected", c.UserID)
 	publishClientMessage(c, closeMsg)
 	c.Cancel()
 }
 
 func (c *Client) handlePrompt(gameMsg *GameMessage) {
-	err := setRedisHash(c.Ctx, c.UserID, string(prompt), gameMsg.Msg)
+	url, err := generatePicture(c, gameMsg.Msg)
+	if err != nil {
+		log.Printf("Error generating image: %v", err)
+		return
+	}
+	ipd := &imagePreviewData{URL: url}
+	picturePreview := generatePicturePreview(ipd)
+	c.WriteChan <- picturePreview
+}
+
+func (c *Client) displayCandidates(candidates []byte) {
+	c.WriteChan <- candidates
+}
+
+func (c *Client) handlePicture(gameMsg *GameMessage) {
+	err := setRedisHash(c.Ctx, c.UserID, string(picture), gameMsg.Msg)
 	if err != nil {
 		log.Printf("Error storing user prompt: %v", err)
 		return
 	}
-	sentPrompt, err := json.Marshal(newPSMessage(prompt, gameMsg.Msg))
+	sentPrompt, err := json.Marshal(newPSMessage(picture, gameMsg.Msg))
 	if err != nil {
 		log.Printf("Error encoding user prompt: %v", err)
 		return
 	}
 	publishClientMessage(c, sentPrompt)
-}
-
-func (c *Client) displayCandidates(candidates []byte) {
-	c.WriteChan <- candidates
 }

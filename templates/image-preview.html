@@ -1,0 +1,8 @@
+<div id="image-preview">
+  <img src="{{ .URL }}" />
+  <form id="answer" ws-send>
+    <input type="hidden" name="event" value="pick-picture" />
+    <input type="hidden" name="msg" value="{{ .URL }}" />
+    <button type="submit">Submit Picture</button>
+  </form>
+</div>

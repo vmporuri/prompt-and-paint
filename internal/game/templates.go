@@ -16,6 +16,10 @@ type votingPageData struct {
 	URLs []string
 }
 
+type imagePreviewData struct {
+	URL string
+}
+
 func generateTemplate(buf *bytes.Buffer, path string, data any) []byte {
 	if buf == nil {
 		buf = &bytes.Buffer{}
@@ -55,4 +59,8 @@ func generateVotingPage(vpd *votingPageData) []byte {
 	buf := &bytes.Buffer{}
 	buf.Write([]byte(fmt.Sprintf("%s:", votePage)))
 	return generateTemplate(buf, filepath.Join("templates", "voting-page.html"), vpd)
+}
+
+func generatePicturePreview(ipd *imagePreviewData) []byte {
+	return generateTemplate(nil, filepath.Join("templates", "image-preview.html"), ipd)
 }
