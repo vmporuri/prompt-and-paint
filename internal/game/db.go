@@ -45,18 +45,12 @@ func subscribeClient(client *Client) {
 	go client.readPump()
 }
 
-func publishClientMessage(client *Client, msg []byte) {
-	err := rdb.Publish(client.Ctx, client.RoomID, msg).Err()
-	if err != nil {
-		log.Println("Could not publish client message")
-	}
+func publishClientMessage(client *Client, msg []byte) error {
+	return rdb.Publish(client.Ctx, client.RoomID, msg).Err()
 }
 
-func publishRoomMessage(room *Room, msg []byte) {
-	err := rdb.Publish(room.Ctx, room.ID, msg).Err()
-	if err != nil {
-		log.Println("Could not publish room message")
-	}
+func publishRoomMessage(room *Room, msg []byte) error {
+	return rdb.Publish(room.Ctx, room.ID, msg).Err()
 }
 
 func setRedisKey(ctx context.Context, key string, value any) error {
@@ -67,11 +61,8 @@ func getRedisKey(ctx context.Context, key string) (string, error) {
 	return rdb.Get(ctx, key).Result()
 }
 
-func addToRedisSet(ctx context.Context, key string, member any) {
-	err := rdb.SAdd(ctx, key, member).Err()
-	if err != nil {
-		log.Println("Could not add to set")
-	}
+func addToRedisSet(ctx context.Context, key string, member any) error {
+	return rdb.SAdd(ctx, key, member).Err()
 }
 
 func checkMembershipRedisSet(ctx context.Context, key string, member any) bool {

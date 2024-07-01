@@ -26,7 +26,7 @@ type Room struct {
 
 const roomList string = "roomList"
 
-func createRoom() *Room {
+func createRoom() (*Room, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	room := &Room{
 		ID:         shortuuid.New(),
@@ -36,9 +36,13 @@ func createRoom() *Room {
 		Ctx:        ctx,
 		Cancel:     cancel,
 	}
-	addToRedisSet(ctx, roomList, room.ID)
+	err := addToRedisSet(ctx, roomList, room.ID)
+	if err != nil {
+		log.Printf("Error adding room to room list: %v", err)
+		return nil, err
+	}
 	subscribeRoom(room)
-	return room
+	return room, nil
 }
 
 func (r *Room) getPlayersKey() string {
@@ -57,6 +61,7 @@ func (r *Room) readPump() {
 			err := json.Unmarshal([]byte(msg.Payload), &psEvent)
 			if err != nil {
 				log.Printf("Error unmarshalling pubsub message: %v", err)
+				continue
 			}
 
 			switch psEvent.Event {
@@ -100,28 +105,38 @@ func (r *Room) addUser(userID, username string) {
 		delete(r.Players, userID)
 		return
 	}
-	publishRoomMessage(r, playerList)
+	err = publishRoomMessage(r, playerList)
+	if err != nil {
+		log.Printf("Error publishing new player list: %v", err)
+		return
+	}
 }
 
 func (r *Room) updateReadyCount() {
 	r.Mutex.Lock()
 	r.ReadyCount++
-	if r.ReadyCount > 0 && r.ReadyCount == len(r.Players) {
-		r.ReadyCount = 0
-		gpd := &gamePageData{Question: generateQuestion(r)}
-		gamePageBytes, err := generateGamePage(gpd)
-		if err != nil {
-			log.Printf("Error creating game page template: %v", err)
-			return
-		}
-		gamePage, err := json.Marshal(newPSMessage(enterGame, string(gamePageBytes)))
-		if err != nil {
-			log.Printf("Error marshalling game page: %v", err)
-			return
-		}
-		publishRoomMessage(r, gamePage)
+	if r.ReadyCount == 0 || r.ReadyCount < len(r.Players) {
+		return
 	}
 	r.Mutex.Unlock()
+
+	r.ReadyCount = 0
+	gpd := &gamePageData{Question: generateQuestion(r)}
+	gamePageBytes, err := generateGamePage(gpd)
+	if err != nil {
+		log.Printf("Error creating game page template: %v", err)
+		return
+	}
+	gamePage, err := json.Marshal(newPSMessage(enterGame, string(gamePageBytes)))
+	if err != nil {
+		log.Printf("Error marshalling game page: %v", err)
+		return
+	}
+	err = publishRoomMessage(r, gamePage)
+	if err != nil {
+		log.Printf("Error publishing game page: %v", err)
+		return
+	}
 }
 
 func (r *Room) disconnectUser(userID string) {
@@ -145,44 +160,49 @@ func (r *Room) handleUserSubmission() {
 }
 
 func (r *Room) sendVotingPage() {
-	if r.ReadyCount > 0 && r.ReadyCount == len(r.Players) {
-		r.Mutex.Lock()
-		r.ReadyCount = 0
-		r.Mutex.Unlock()
+	if r.ReadyCount == 0 || r.ReadyCount < len(r.Players) {
+		return
+	}
+	r.Mutex.Lock()
+	r.ReadyCount = 0
+	r.Mutex.Unlock()
 
-		answers := make([]string, 0, len(r.Players))
-		for player := range r.Players {
-			ans, err := getRedisHash(r.Ctx, player, string(picture))
-			if err != nil {
-				log.Printf("Error fetching player answer: %v", err)
-				continue
-			}
-			answers = append(answers, ans)
-		}
-		rand.Shuffle(len(answers), func(i, j int) {
-			answers[i], answers[j] = answers[j], answers[i]
-		})
-
-		for _, ans := range answers {
-			err := setRedisKey(r.Ctx, ans, 0)
-			if err != nil {
-				log.Printf("Error initializing vote count: %v", err)
-				continue
-			}
-		}
-
-		apd := &votingPageData{URLs: answers}
-		votingPageBytes, err := generateVotingPage(apd)
+	answers := make([]string, 0, len(r.Players))
+	for player := range r.Players {
+		ans, err := getRedisHash(r.Ctx, player, string(picture))
 		if err != nil {
-			log.Printf("Error creating voting page template: %v", err)
-			return
+			log.Printf("Error fetching player answer: %v", err)
+			continue
 		}
-		votingPage, err := json.Marshal(newPSMessage(votePage, string(votingPageBytes)))
+		answers = append(answers, ans)
+	}
+	rand.Shuffle(len(answers), func(i, j int) {
+		answers[i], answers[j] = answers[j], answers[i]
+	})
+
+	for _, ans := range answers {
+		err := setRedisKey(r.Ctx, ans, 0)
 		if err != nil {
-			log.Printf("Error marshalling voting page data: %v", err)
-			return
+			log.Printf("Error initializing vote count: %v", err)
+			continue
 		}
-		publishRoomMessage(r, votingPage)
+	}
+
+	apd := &votingPageData{URLs: answers}
+	votingPageBytes, err := generateVotingPage(apd)
+	if err != nil {
+		log.Printf("Error creating voting page template: %v", err)
+		return
+	}
+	votingPage, err := json.Marshal(newPSMessage(votePage, string(votingPageBytes)))
+	if err != nil {
+		log.Printf("Error marshalling voting page data: %v", err)
+		return
+	}
+	err = publishRoomMessage(r, votingPage)
+	if err != nil {
+		log.Printf("Error publishing voting page: %v", err)
+		return
 	}
 }
 
@@ -237,6 +257,7 @@ func (r *Room) countVotes() {
 	lb, err := getRedisSortedSet(r.Ctx, r.getPlayersKey())
 	if err != nil {
 		log.Printf("Error retrieving leaderboard: %v", err)
+		return
 	}
 	for player := range maps.Clone(lb) {
 		username, ok := r.Players[player]
@@ -265,5 +286,9 @@ func (r *Room) sendLeaderboard(scores map[string]int, lb map[string]int) {
 		log.Printf("Error marshalling leaderboard page: %v", err)
 		return
 	}
-	publishRoomMessage(r, leaderboardPage)
+	err = publishRoomMessage(r, leaderboardPage)
+	if err != nil {
+		log.Printf("Error publishing leaderboard: %v", err)
+		return
+	}
 }

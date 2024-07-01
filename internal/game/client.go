@@ -92,7 +92,11 @@ func (c *Client) readPump() {
 }
 
 func (c *Client) handleCreate() {
-	room := createRoom()
+	room, err := createRoom()
+	if err != nil {
+		log.Printf("Error creating new room: %f", err)
+		return
+	}
 	c.Mutex.Lock()
 	c.RoomID = room.ID
 	c.Mutex.Unlock()
@@ -100,6 +104,7 @@ func (c *Client) handleCreate() {
 	usernamePage, err := generateUsername()
 	if err != nil {
 		log.Printf("Error creating username page template: %v", err)
+		return
 	}
 	c.WriteChan <- usernamePage
 }
@@ -118,6 +123,7 @@ func (c *Client) handleJoin(gameMsg *GameMessage) {
 	usernamePage, err := generateUsername()
 	if err != nil {
 		log.Printf("Error creating username page template: %v", err)
+		return
 	}
 	c.WriteChan <- usernamePage
 }
@@ -134,11 +140,16 @@ func (c *Client) handleUsername(gameMsg *GameMessage) {
 		log.Printf("Error encoding new user message: %v", err)
 		return
 	}
-	publishClientMessage(c, newUserMsg)
+	err = publishClientMessage(c, newUserMsg)
+	if err != nil {
+		log.Printf("Error publishing new username: %v", err)
+		return
+	}
 	wpd := &waitingPageData{RoomID: c.RoomID}
 	waitingPage, err := generateWaitingPage(wpd)
 	if err != nil {
 		log.Printf("Error creating waiting page template: %v", err)
+		return
 	}
 	c.WriteChan <- waitingPage
 }
@@ -149,7 +160,11 @@ func (c *Client) handleReady() {
 		log.Printf("Error encoding new user message: %v", err)
 		return
 	}
-	publishClientMessage(c, readyMsg)
+	err = publishClientMessage(c, readyMsg)
+	if err != nil {
+		log.Printf("Error updating player status to ready: %v", err)
+		return
+	}
 }
 
 func (c *Client) updatePlayerList(players []byte) {
@@ -167,7 +182,11 @@ func (c *Client) handleClose() {
 		return
 	}
 	log.Printf("User %s disconnected", c.UserID)
-	publishClientMessage(c, closeMsg)
+	err = publishClientMessage(c, closeMsg)
+	if err != nil {
+		log.Printf("Error publishing close message: %v", err)
+		return
+	}
 	c.Cancel()
 }
 
@@ -181,6 +200,7 @@ func (c *Client) handlePrompt(gameMsg *GameMessage) {
 	picturePreview, err := generatePicturePreview(ipd)
 	if err != nil {
 		log.Printf("Error creating picture preview template: %v", err)
+		return
 	}
 	c.WriteChan <- picturePreview
 }
@@ -200,15 +220,24 @@ func (c *Client) handlePicture(gameMsg *GameMessage) {
 		log.Printf("Error encoding user prompt: %v", err)
 		return
 	}
-	publishClientMessage(c, sentPrompt)
+	err = publishClientMessage(c, sentPrompt)
+	if err != nil {
+		log.Printf("Error publishing generated image url: %v", err)
+		return
+	}
 }
 
 func (c *Client) handleVote(gameMsg *GameMessage) {
 	vote, err := json.Marshal(newPSMessage(gameMsg.Event, gameMsg.Msg))
 	if err != nil {
 		log.Printf("Error encoding vote: %v", err)
+		return
 	}
-	publishClientMessage(c, vote)
+	err = publishClientMessage(c, vote)
+	if err != nil {
+		log.Printf("Error publishing player vote: %v", err)
+		return
+	}
 }
 
 func (c *Client) displayLeaderboard(leaderboard []byte) {
