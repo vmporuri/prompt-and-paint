@@ -15,6 +15,8 @@ const (
 	picture       gameEvent = "picture"
 	votePage      gameEvent = "vote-page"
 	pickPicture   gameEvent = "pick-picture"
+	vote          gameEvent = "vote"
+	leaderboard   gameEvent = "leaderboard"
 )
 
 const CloseWS gameEvent = "close-ws"

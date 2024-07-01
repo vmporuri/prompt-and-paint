@@ -1,8 +1,14 @@
 <div id="game">
-  <form id="ready" ws-send>
-    <input type="hidden" name="event" value="ready" />
+  <form id="vote-form" ws-send>
+    <input type="hidden" name="event" value="vote" />
     {{ range $i, $url := .URLs }}
-    <input id="pic{{ $i }}" type="radio" name="msg" />
+    <input
+      id="pic{{ $i }}"
+      type="radio"
+      name="msg"
+      value="{{ $url }}"
+      required
+    />
     <label for="pic{{ $i }}"><img src="{{ $url }}" /></label>
     {{ end }}
     <button type="submit">Cast Vote</button>

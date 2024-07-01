@@ -1,0 +1,48 @@
+<div id="game">
+  <table id="scores">
+    <caption>
+      Scores
+    </caption>
+    <thead>
+      <tr>
+        <th>Players</th>
+        <th>Score</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range $username, $score := .Scores }}
+      <tr>
+        <td>{{ $username }}</td>
+        <td>{{ $score }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+  <table id="leaderboard">
+    <caption>
+      Leaderboard
+    </caption>
+    <thead>
+      <tr>
+        <th>Players</th>
+        <th>Score</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ range $username, $score := .Leaderboard }}
+      <tr>
+        <td>{{ $username }}</td>
+        <td>{{ $score }}</td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+  <a id="leave" href="/">
+    <button>Leave Game</button>
+  </a>
+  <form id="ready" ws-send>
+    <input type="hidden" name="event" value="ready" />
+    <input type="hidden" name="msg" value="ready" />
+    <button>Ready for Next Round</button>
+  </form>
+</div>

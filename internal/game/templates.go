@@ -20,6 +20,11 @@ type imagePreviewData struct {
 	URL string
 }
 
+type leaderboardPageData struct {
+	Scores      map[string]int
+	Leaderboard map[string]int
+}
+
 func generateTemplate(buf *bytes.Buffer, path string, data any) []byte {
 	if buf == nil {
 		buf = &bytes.Buffer{}
@@ -63,4 +68,10 @@ func generateVotingPage(vpd *votingPageData) []byte {
 
 func generatePicturePreview(ipd *imagePreviewData) []byte {
 	return generateTemplate(nil, filepath.Join("templates", "image-preview.html"), ipd)
+}
+
+func generateLeaderboardPage(lpd *leaderboardPageData) []byte {
+	buf := &bytes.Buffer{}
+	buf.Write([]byte(fmt.Sprintf("%s:", leaderboard)))
+	return generateTemplate(buf, filepath.Join("templates", "leaderboard.html"), lpd)
 }

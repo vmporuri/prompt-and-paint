@@ -54,6 +54,8 @@ func DispatchGameEvent(client *Client, gameMsg *GameMessage) {
 		client.handlePrompt(gameMsg)
 	case pickPicture:
 		client.handlePicture(gameMsg)
+	case vote:
+		client.handleVote(gameMsg)
 	case CloseWS:
 		client.handleClose()
 	}
@@ -80,6 +82,8 @@ func (c *Client) readPump() {
 				c.loadGame([]byte(psEvent.Msg))
 			case votePage:
 				c.displayCandidates([]byte(psEvent.Msg))
+			case leaderboard:
+				c.displayLeaderboard([]byte(psEvent.Msg))
 			}
 		case <-c.Ctx.Done():
 			return
@@ -181,4 +185,16 @@ func (c *Client) handlePicture(gameMsg *GameMessage) {
 		return
 	}
 	publishClientMessage(c, sentPrompt)
+}
+
+func (c *Client) handleVote(gameMsg *GameMessage) {
+	vote, err := json.Marshal(newPSMessage(gameMsg.Event, gameMsg.Msg))
+	if err != nil {
+		log.Printf("Error encoding vote: %v", err)
+	}
+	publishClientMessage(c, vote)
+}
+
+func (c *Client) displayLeaderboard(leaderboard []byte) {
+	c.WriteChan <- leaderboard
 }

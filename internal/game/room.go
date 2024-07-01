@@ -3,8 +3,11 @@ package game
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"maps"
 	"math/rand"
+	"strconv"
 	"sync"
 
 	"github.com/lithammer/shortuuid"
@@ -38,6 +41,10 @@ func createRoom() *Room {
 	return room
 }
 
+func (r *Room) getPlayersKey() string {
+	return fmt.Sprintf("%s:players", r.ID)
+}
+
 func (r *Room) readPump() {
 	defer r.Pubsub.Close()
 
@@ -59,6 +66,8 @@ func (r *Room) readPump() {
 				go r.updateReadyCount()
 			case picture:
 				go r.handleUserSubmission()
+			case vote:
+				go r.handleVote(psEvent.Msg)
 			case CloseWS:
 				go r.disconnectUser(psEvent.Msg)
 			}
@@ -72,9 +81,17 @@ func (r *Room) addUser(userID, username string) {
 	r.Mutex.Lock()
 	r.Players[userID] = username
 	r.Mutex.Unlock()
+	err := addToRedisSortedSet(r.Ctx, r.getPlayersKey(), userID)
+	if err != nil {
+		log.Printf("Error adding new user: %v", err)
+		delete(r.Players, userID)
+		return
+	}
+
 	playerList, err := json.Marshal(newPSMessage(newPlayerList, string(generatePlayerList(r))))
 	if err != nil {
-		log.Println("Could not marshal new player list")
+		log.Printf("Error marshalling new player list: %v", err)
+		delete(r.Players, userID)
 		return
 	}
 	publishRoomMessage(r, playerList)
@@ -100,6 +117,10 @@ func (r *Room) disconnectUser(userID string) {
 	r.Mutex.Lock()
 	delete(r.Players, userID)
 	if len(r.Players) == 0 {
+		err := deleteFromRedisSet(r.Ctx, roomList, r.ID)
+		if err != nil {
+			log.Printf("Error deleting room from roomList: %v", err)
+		}
 		r.Cancel()
 	}
 	r.Mutex.Unlock()
@@ -131,6 +152,14 @@ func (r *Room) sendVotingPage() {
 			answers[i], answers[j] = answers[j], answers[i]
 		})
 
+		for _, ans := range answers {
+			err := setRedisKey(r.Ctx, ans, 0)
+			if err != nil {
+				log.Printf("Error initializing vote count: %v", err)
+				continue
+			}
+		}
+
 		apd := &votingPageData{URLs: answers}
 		votingPage, err := json.Marshal(newPSMessage(votePage, string(generateVotingPage(apd))))
 		if err != nil {
@@ -139,4 +168,81 @@ func (r *Room) sendVotingPage() {
 		}
 		publishRoomMessage(r, votingPage)
 	}
+}
+
+func (r *Room) handleVote(voteURL string) {
+	r.Mutex.Lock()
+	r.ReadyCount++
+	r.Mutex.Unlock()
+	err := incrRedisKey(r.Ctx, voteURL)
+	if err != nil {
+		log.Printf("Error updating vote counts: %v", err)
+		return
+	}
+	r.countVotes()
+}
+
+func (r *Room) countVotes() {
+	if r.ReadyCount == 0 || r.ReadyCount < len(r.Players) {
+		return
+	}
+
+	r.Mutex.Lock()
+	r.ReadyCount = 0
+	r.Mutex.Unlock()
+
+	scores := make(map[string]int)
+	for player, username := range r.Players {
+		url, err := getRedisHash(r.Ctx, player, string(picture))
+		if err != nil {
+			log.Printf("Error fetching player answer: %v", err)
+			continue
+		}
+		countString, err := getRedisKey(r.Ctx, url)
+		if err != nil {
+			log.Printf("Error retrieving vote count: %v", err)
+			continue
+		}
+		count, err := strconv.Atoi(countString)
+		if err != nil {
+			log.Printf("Error processing count: %v", err)
+			continue
+		}
+		scores[username] = count
+	}
+
+	for player, username := range r.Players {
+		err := updateRedisSortedSet(r.Ctx, r.getPlayersKey(), player, scores[username])
+		if err != nil {
+			log.Printf("Error updating player score: %v", err)
+		}
+	}
+
+	lb, err := getRedisSortedSet(r.Ctx, r.getPlayersKey())
+	if err != nil {
+		log.Printf("Error retrieving leaderboard: %v", err)
+	}
+	for player := range maps.Clone(lb) {
+		username, ok := r.Players[player]
+		if !ok {
+			log.Printf("Error unknown player on leaderboard: %s", player)
+			continue
+		}
+		lb[username] = lb[player]
+		delete(lb, player)
+	}
+
+	r.sendLeaderboard(scores, lb)
+}
+
+func (r *Room) sendLeaderboard(scores map[string]int, lb map[string]int) {
+	lpd := &leaderboardPageData{Scores: scores, Leaderboard: lb}
+	leaderboardPage, err := json.Marshal(
+		newPSMessage(leaderboard, string(generateLeaderboardPage(lpd))),
+	)
+	if err != nil {
+		log.Printf("Error marshalling leaderboard page: %v", err)
+		return
+	}
+	publishRoomMessage(r, leaderboardPage)
 }

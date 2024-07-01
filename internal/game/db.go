@@ -59,11 +59,12 @@ func publishRoomMessage(room *Room, msg []byte) {
 	}
 }
 
-func setRedisKey(ctx context.Context, key string, value any) {
-	err := rdb.Set(ctx, key, value, time.Hour).Err()
-	if err != nil {
-		log.Println("Could not store key")
-	}
+func setRedisKey(ctx context.Context, key string, value any) error {
+	return rdb.Set(ctx, key, value, time.Hour).Err()
+}
+
+func getRedisKey(ctx context.Context, key string) (string, error) {
+	return rdb.Get(ctx, key).Result()
 }
 
 func addToRedisSet(ctx context.Context, key string, member any) {
@@ -81,10 +82,45 @@ func checkMembershipRedisSet(ctx context.Context, key string, member any) bool {
 	return isMember
 }
 
+func deleteFromRedisSet(ctx context.Context, key string, member any) error {
+	return rdb.SRem(ctx, key, member).Err()
+}
+
 func setRedisHash(ctx context.Context, hash, key string, value any) error {
 	return rdb.HSet(ctx, hash, key, value).Err()
 }
 
 func getRedisHash(ctx context.Context, hash, key string) (string, error) {
 	return rdb.HGet(ctx, hash, key).Result()
+}
+
+func incrRedisKey(ctx context.Context, key string) error {
+	return rdb.Incr(ctx, key).Err()
+}
+
+func addToRedisSortedSet(ctx context.Context, key, member string) error {
+	z := redis.Z{Score: 0, Member: member}
+	return rdb.ZAdd(ctx, key, z).Err()
+}
+
+func updateRedisSortedSet(ctx context.Context, key, member string, score int) error {
+	return rdb.ZIncrBy(ctx, key, float64(score), member).Err()
+}
+
+func getRedisSortedSet(ctx context.Context, key string) (map[string]int, error) {
+	setSlice, err := rdb.ZRevRangeWithScores(ctx, key, 0, -1).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	set := make(map[string]int, len(setSlice))
+	for _, z := range setSlice {
+		member, ok := z.Member.(string)
+		if !ok {
+			log.Printf("Error fetching member from sorted set: %v", err)
+			continue
+		}
+		set[member] = int(z.Score)
+	}
+	return set, nil
 }
