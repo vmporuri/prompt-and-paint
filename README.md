@@ -1,5 +1,8 @@
 # Prompt and Paint
 
+[![GoDoc](https://godoc.org/github.com/vmporuri/prompt-and-paint?status.svg)](https://godoc.org/github.com/vmporuri/prompt-and-paint)
+[![Go Report Card](https://goreportcard.com/badge/github.com/vmporuri/prompt-and-paint)](https://goreportcard.com/report/github.com/vmporuri/prompt-and-paint)
+
 A fun new party game: Prompt and Paint!
 
 ## Installation
