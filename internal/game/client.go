@@ -17,7 +17,7 @@ type Client struct {
 	Username  string
 	RoomID    string
 	Pubsub    *redis.PubSub
-	Mutex     *sync.RWMutex
+	Mutex     *sync.Mutex
 	WriteChan chan []byte
 	Ctx       context.Context
 	Cancel    context.CancelFunc
@@ -34,7 +34,7 @@ func NewClient(conn *websocket.Conn) *Client {
 	return &Client{
 		Conn:      conn,
 		WriteChan: make(chan []byte),
-		Mutex:     &sync.RWMutex{},
+		Mutex:     &sync.Mutex{},
 		Ctx:       ctx,
 		Cancel:    cancel,
 	}
@@ -43,21 +43,21 @@ func NewClient(conn *websocket.Conn) *Client {
 func DispatchGameEvent(client *Client, gameMsg *GameMessage) {
 	switch gameMsg.Event {
 	case create:
-		client.handleCreate()
+		go client.handleCreate()
 	case join:
-		client.handleJoin(gameMsg)
+		go client.handleJoin(gameMsg)
 	case username:
-		client.handleUsername(gameMsg)
+		go client.handleUsername(gameMsg)
 	case ready:
-		client.handleReady()
+		go client.handleReady()
 	case prompt:
-		client.handlePrompt(gameMsg)
+		go client.handlePrompt(gameMsg)
 	case pickPicture:
-		client.handlePicture(gameMsg)
+		go client.handlePicture(gameMsg)
 	case vote:
-		client.handleVote(gameMsg)
+		go client.handleVote(gameMsg)
 	case CloseWS:
-		client.handleClose()
+		go client.handleClose()
 	}
 }
 
@@ -77,18 +77,26 @@ func (c *Client) readPump() {
 
 			switch psEvent.Event {
 			case newPlayerList:
-				c.updatePlayerList([]byte(psEvent.Msg))
+				go c.updatePlayerList([]byte(psEvent.Msg))
 			case enterGame:
-				c.loadGame([]byte(psEvent.Msg))
+				go c.loadGame([]byte(psEvent.Msg))
 			case votePage:
-				c.displayCandidates([]byte(psEvent.Msg))
-			case leaderboard:
-				c.displayLeaderboard([]byte(psEvent.Msg))
+				go c.displayCandidates([]byte(psEvent.Msg))
+			case sendLeaderboard:
+				go c.displayLeaderboard([]byte(psEvent.Msg))
 			}
 		case <-c.Ctx.Done():
 			return
 		}
 	}
+}
+
+func (c *Client) readyPlayer() error {
+	return setRedisHash(c.Ctx, c.UserID, string(ready), string(isReady))
+}
+
+func (c *Client) unreadyPlayer() error {
+	return setRedisHash(c.Ctx, c.UserID, string(ready), string(isNotReady))
 }
 
 func (c *Client) handleCreate() {
@@ -133,8 +141,16 @@ func (c *Client) handleUsername(gameMsg *GameMessage) {
 	c.UserID = shortuuid.New()
 	c.Username = gameMsg.Msg
 	c.Mutex.Unlock()
+	err := setRedisHash(c.Ctx, c.UserID, string(username), c.Username)
+	if err != nil {
+		log.Printf("Error setting player username in database: %v", err)
+	}
+	err = setRedisHash(c.Ctx, c.UserID, string(ready), false)
+	if err != nil {
+		log.Printf("Error initializing player status: %v", err)
+	}
 	newUserMsg, err := json.Marshal(
-		newPSMessageWithOptMsg(newUser, c.UserID, c.Username),
+		newPSMessage(newUser, c.UserID, c.Username),
 	)
 	if err != nil {
 		log.Printf("Error encoding new user message: %v", err)
@@ -155,7 +171,12 @@ func (c *Client) handleUsername(gameMsg *GameMessage) {
 }
 
 func (c *Client) handleReady() {
-	readyMsg, err := json.Marshal(newPSMessage(ready, c.UserID))
+	err := c.readyPlayer()
+	if err != nil {
+		log.Printf("Error setting player status to ready: %v", err)
+		return
+	}
+	readyMsg, err := json.Marshal(newPSMessage(ready, c.UserID, c.UserID))
 	if err != nil {
 		log.Printf("Error encoding new user message: %v", err)
 		return
@@ -172,11 +193,16 @@ func (c *Client) updatePlayerList(players []byte) {
 }
 
 func (c *Client) loadGame(gamePage []byte) {
+	err := c.unreadyPlayer()
+	if err != nil {
+		log.Printf("Error setting player status to unready: %v", err)
+		return
+	}
 	c.WriteChan <- gamePage
 }
 
 func (c *Client) handleClose() {
-	closeMsg, err := json.Marshal(newPSMessage(CloseWS, c.UserID))
+	closeMsg, err := json.Marshal(newPSMessage(CloseWS, c.UserID, c.UserID))
 	if err != nil {
 		log.Printf("Error encoding close message: %v", err)
 		return
@@ -206,16 +232,26 @@ func (c *Client) handlePrompt(gameMsg *GameMessage) {
 }
 
 func (c *Client) displayCandidates(candidates []byte) {
+	err := c.unreadyPlayer()
+	if err != nil {
+		log.Printf("Error setting player status to unready: %v", err)
+		return
+	}
 	c.WriteChan <- candidates
 }
 
 func (c *Client) handlePicture(gameMsg *GameMessage) {
-	err := setRedisHash(c.Ctx, c.UserID, string(picture), gameMsg.Msg)
+	err := c.readyPlayer()
+	if err != nil {
+		log.Printf("Error setting player status to ready: %v", err)
+		return
+	}
+	err = setRedisHash(c.Ctx, c.UserID, string(picture), gameMsg.Msg)
 	if err != nil {
 		log.Printf("Error storing user prompt: %v", err)
 		return
 	}
-	sentPrompt, err := json.Marshal(newPSMessage(picture, gameMsg.Msg))
+	sentPrompt, err := json.Marshal(newPSMessage(getPicture, c.UserID, gameMsg.Msg))
 	if err != nil {
 		log.Printf("Error encoding user prompt: %v", err)
 		return
@@ -228,7 +264,12 @@ func (c *Client) handlePicture(gameMsg *GameMessage) {
 }
 
 func (c *Client) handleVote(gameMsg *GameMessage) {
-	vote, err := json.Marshal(newPSMessage(gameMsg.Event, gameMsg.Msg))
+	err := c.readyPlayer()
+	if err != nil {
+		log.Printf("Error setting player status to ready: %v", err)
+		return
+	}
+	vote, err := json.Marshal(newPSMessage(gameMsg.Event, c.UserID, gameMsg.Msg))
 	if err != nil {
 		log.Printf("Error encoding vote: %v", err)
 		return
@@ -241,5 +282,10 @@ func (c *Client) handleVote(gameMsg *GameMessage) {
 }
 
 func (c *Client) displayLeaderboard(leaderboard []byte) {
+	err := c.unreadyPlayer()
+	if err != nil {
+		log.Printf("Error setting player status to unready: %v", err)
+		return
+	}
 	c.WriteChan <- leaderboard
 }

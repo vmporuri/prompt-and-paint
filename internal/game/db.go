@@ -10,24 +10,19 @@ import (
 
 type PSMessage struct {
 	Event  gameEvent `json:"event"`
+	Sender string    `json:"sender"`
 	Msg    string    `json:"msg"`
-	OptMsg string    `json:"optMsg"`
 }
 
 var rdb *redis.Client
 
-func newPSMessage(event gameEvent, msg string) *PSMessage {
-	return &PSMessage{
-		Event: event,
-		Msg:   msg,
-	}
-}
+const expireTime = time.Hour
 
-func newPSMessageWithOptMsg(event gameEvent, msg, optMsg string) *PSMessage {
+func newPSMessage(event gameEvent, sender, msg string) *PSMessage {
 	return &PSMessage{
 		Event:  event,
+		Sender: sender,
 		Msg:    msg,
-		OptMsg: optMsg,
 	}
 }
 
@@ -54,7 +49,7 @@ func publishRoomMessage(room *Room, msg []byte) error {
 }
 
 func setRedisKey(ctx context.Context, key string, value any) error {
-	return rdb.Set(ctx, key, value, time.Hour).Err()
+	return rdb.Set(ctx, key, value, expireTime).Err()
 }
 
 func getRedisKey(ctx context.Context, key string) (string, error) {
@@ -98,7 +93,7 @@ func updateRedisSortedSet(ctx context.Context, key, member string, score int) er
 	return rdb.ZIncrBy(ctx, key, float64(score), member).Err()
 }
 
-func getRedisSortedSet(ctx context.Context, key string) (map[string]int, error) {
+func getRedisSortedSetWithScores(ctx context.Context, key string) (map[string]int, error) {
 	setSlice, err := rdb.ZRevRangeWithScores(ctx, key, 0, -1).Result()
 	if err != nil {
 		return nil, err
@@ -114,4 +109,8 @@ func getRedisSortedSet(ctx context.Context, key string) (map[string]int, error) 
 		set[member] = int(z.Score)
 	}
 	return set, nil
+}
+
+func deleteFromRedisSortedSet(ctx context.Context, key, member string) error {
+	return rdb.ZRem(ctx, key, member).Err()
 }

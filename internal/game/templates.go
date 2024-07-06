@@ -54,6 +54,6 @@ func generatePicturePreview(ipd *imagePreviewData) ([]byte, error) {
 
 func generateLeaderboardPage(lpd *leaderboardPageData) ([]byte, error) {
 	buf := &bytes.Buffer{}
-	buf.Write([]byte(fmt.Sprintf("%s:", leaderboard)))
+	buf.Write([]byte(fmt.Sprintf("%s:", sendLeaderboard)))
 	return generateTemplate(buf, filepath.Join("templates", "leaderboard.html"), lpd)
 }
