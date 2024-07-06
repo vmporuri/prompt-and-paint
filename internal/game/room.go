@@ -44,6 +44,12 @@ func createRoom() (*Room, error) {
 		return nil, err
 	}
 	room.resetReadyCount()
+	go func() {
+		_, err := room.generateQuestion()
+		if err != nil {
+			log.Printf("Error generating question: %v", err)
+		}
+	}()
 	subscribeRoom(room)
 	return room, nil
 }
@@ -134,6 +140,15 @@ func (r *Room) resetReadyCount() {
 	r.Mutex.Unlock()
 }
 
+func (r *Room) getQuestion() (string, error) {
+	return getRedisHash(r.Ctx, r.ID, "question")
+}
+
+func (r *Room) generateQuestion() (string, error) {
+	question := generateAIQuestion(r)
+	return question, setRedisHash(r.Ctx, r.ID, "question", question)
+}
+
 func (r *Room) readPump() {
 	defer r.Pubsub.Close()
 
@@ -222,7 +237,21 @@ func (r *Room) handleReadySignal(userID string) {
 	}
 
 	r.resetReadyCount()
-	gpd := &gamePageData{Question: generateQuestion(r)}
+	question, err := r.getQuestion()
+	if err != nil {
+		question, err = r.generateQuestion()
+		if err != nil {
+			log.Printf("Could not generate a prompt: %v", err)
+			return
+		}
+	}
+	gpd := &gamePageData{Question: question}
+	go func() {
+		_, err := r.generateQuestion()
+		if err != nil {
+			log.Printf("Error generating question: %v", err)
+		}
+	}()
 	gamePageBytes, err := generateGamePage(gpd)
 	if err != nil {
 		log.Printf("Error creating game page template: %v", err)

@@ -217,7 +217,7 @@ func (c *Client) handleClose() {
 }
 
 func (c *Client) handlePrompt(gameMsg *GameMessage) {
-	url, err := generatePicture(c, gameMsg.Msg)
+	url, err := generateAIPicture(c, gameMsg.Msg)
 	if err != nil {
 		log.Printf("Error generating image: %v", err)
 		return
