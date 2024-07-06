@@ -145,7 +145,10 @@ func (r *Room) getQuestion() (string, error) {
 }
 
 func (r *Room) generateQuestion() (string, error) {
-	question := generateAIQuestion(r)
+	question, err := generateAIQuestion(r.Ctx)
+	if err != nil {
+		return "", err
+	}
 	return question, setRedisHash(r.Ctx, r.ID, "question", question)
 }
 
