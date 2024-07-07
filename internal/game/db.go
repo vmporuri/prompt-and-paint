@@ -49,7 +49,11 @@ func publishRoomMessage(room *Room, msg []byte) error {
 }
 
 func setRedisKey(ctx context.Context, key string, value any) error {
-	return rdb.Set(ctx, key, value, expireTime).Err()
+	err := rdb.Set(ctx, key, value, expireTime).Err()
+	if err != nil {
+		return err
+	}
+	return rdb.Expire(ctx, key, expireTime).Err()
 }
 
 func getRedisKey(ctx context.Context, key string) (string, error) {
@@ -57,7 +61,11 @@ func getRedisKey(ctx context.Context, key string) (string, error) {
 }
 
 func addToRedisSet(ctx context.Context, key string, member any) error {
-	return rdb.SAdd(ctx, key, member).Err()
+	err := rdb.SAdd(ctx, key, member).Err()
+	if err != nil {
+		return err
+	}
+	return rdb.Expire(ctx, key, expireTime).Err()
 }
 
 func checkMembershipRedisSet(ctx context.Context, key string, member any) bool {
@@ -73,7 +81,11 @@ func deleteFromRedisSet(ctx context.Context, key string, member any) error {
 }
 
 func setRedisHash(ctx context.Context, hash, key string, value any) error {
-	return rdb.HSet(ctx, hash, key, value).Err()
+	err := rdb.HSet(ctx, hash, key, value).Err()
+	if err != nil {
+		return err
+	}
+	return rdb.Expire(ctx, hash, expireTime).Err()
 }
 
 func getRedisHash(ctx context.Context, hash, key string) (string, error) {
@@ -86,7 +98,11 @@ func incrRedisKey(ctx context.Context, key string) error {
 
 func addToRedisSortedSet(ctx context.Context, key, member string) error {
 	z := redis.Z{Score: 0, Member: member}
-	return rdb.ZAdd(ctx, key, z).Err()
+	err := rdb.ZAdd(ctx, key, z).Err()
+	if err != nil {
+		return err
+	}
+	return rdb.Expire(ctx, key, expireTime).Err()
 }
 
 func updateRedisSortedSet(ctx context.Context, key, member string, score int) error {
