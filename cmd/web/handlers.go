@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+
+	"github.com/google/uuid"
 )
 
 func registerRoutes(mux *http.ServeMux) {
@@ -14,6 +16,17 @@ func registerRoutes(mux *http.ServeMux) {
 			return
 		}
 
+		_, err := r.Cookie("userID")
+		if err != nil {
+			http.SetCookie(w, &http.Cookie{
+				Name:     "userID",
+				Value:    uuid.NewString(),
+				Path:     "/",
+				MaxAge:   3600,
+				Secure:   true,
+				SameSite: http.SameSiteLaxMode,
+			})
+		}
 		tmpl, err := template.ParseFiles(filepath.Join("templates", "index.html"))
 		if err != nil {
 			log.Fatalf("Error parsing template: %v", err)

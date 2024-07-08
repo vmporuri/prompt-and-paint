@@ -5,7 +5,8 @@ type gameEvent string
 const (
 	create          gameEvent = "create-room"
 	join            gameEvent = "join-room"
-	username        gameEvent = "set-username"
+	reconnect       gameEvent = "reconnect"
+	setUsername     gameEvent = "set-username"
 	ready           gameEvent = "ready"
 	newPlayerList   gameEvent = "new-player-list"
 	enterGame       gameEvent = "game-room"

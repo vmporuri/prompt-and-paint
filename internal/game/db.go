@@ -68,12 +68,8 @@ func addToRedisSet(ctx context.Context, key string, member any) error {
 	return rdb.Expire(ctx, key, expireTime).Err()
 }
 
-func checkMembershipRedisSet(ctx context.Context, key string, member any) bool {
-	isMember, err := rdb.SIsMember(ctx, key, member).Result()
-	if err != nil {
-		log.Println("Could not check set membership")
-	}
-	return isMember
+func checkMembershipRedisSet(ctx context.Context, key string, member any) (bool, error) {
+	return rdb.SIsMember(ctx, key, member).Result()
 }
 
 func deleteFromRedisSet(ctx context.Context, key string, member any) error {
@@ -129,4 +125,8 @@ func getRedisSortedSetWithScores(ctx context.Context, key string) (map[string]in
 
 func deleteFromRedisSortedSet(ctx context.Context, key, member string) error {
 	return rdb.ZRem(ctx, key, member).Err()
+}
+
+func deleteRedisHash(ctx context.Context, hash string) error {
+	return rdb.Del(ctx, hash).Err()
 }

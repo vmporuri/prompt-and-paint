@@ -3,11 +3,11 @@ package game
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"sync"
 
 	"github.com/gorilla/websocket"
-	"github.com/lithammer/shortuuid"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -29,15 +29,86 @@ type GameMessage struct {
 	Msg     string         `json:"msg"`
 }
 
-func NewClient(conn *websocket.Conn) *Client {
+// Creates a new client with the provided userID.
+// Automatically reconnects to game if existing userID is found.
+func NewClient(conn *websocket.Conn, userID string) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Client{
+	client := &Client{
 		Conn:      conn,
+		UserID:    userID,
 		WriteChan: make(chan []byte),
 		Mutex:     &sync.Mutex{},
 		Ctx:       ctx,
 		Cancel:    cancel,
 	}
+	username, err := getRedisHash(client.Ctx, userID, string(username))
+	if err != nil {
+		log.Printf("Created new user: %s", userID)
+		return client
+	}
+	roomID, err := getRedisHash(client.Ctx, userID, string(roomID))
+	if err != nil {
+		log.Printf("Created new user: %s", userID)
+		return client
+	}
+
+	client.Username = username
+	err = client.joinRoom(roomID)
+	if err != nil {
+		log.Printf("Error unable to reconnect to room: %v", err)
+	}
+	err = client.reconnectClient()
+	if err != nil {
+		log.Printf("Error unable to reconnect to room: %v", err)
+	}
+	return client
+}
+
+// Reconnects client to the room by updating room's information and fetching room state.
+func (c *Client) reconnectClient() error {
+	reconnectionMessage := &PSMessage{
+		Event:  reconnect,
+		Sender: c.UserID,
+		Msg:    c.Username,
+	}
+	reconnectionJSON, err := json.Marshal(reconnectionMessage)
+	if err != nil {
+		return err
+	}
+	err = publishClientMessage(c, reconnectionJSON)
+	if err != nil {
+		return err
+	}
+	roomState, err := c.fetchRoomState()
+	if err != nil {
+		return errors.New("Unable to fetch current room state")
+	}
+	go func() {
+		c.WriteChan <- []byte(roomState)
+	}()
+	return nil
+}
+
+// Adds client to the room identified by roomID.
+// Returns a non-nil error if the room does not exist.
+func (c *Client) joinRoom(roomID string) error {
+	exists, err := roomRepo.LookupRoom(c.Ctx, roomID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.New("Room does not exist")
+	}
+	c.Mutex.Lock()
+	c.RoomID = roomID
+	c.Mutex.Unlock()
+	subscribeClient(c)
+	return nil
+}
+
+// Fetches room state in case of reconnection or any other error.
+func (c *Client) fetchRoomState() (string, error) {
+	return getRedisHash(c.Ctx, c.RoomID, string(roomState))
 }
 
 func DispatchGameEvent(client *Client, gameMsg *GameMessage) {
@@ -46,7 +117,7 @@ func DispatchGameEvent(client *Client, gameMsg *GameMessage) {
 		go client.handleCreate()
 	case join:
 		go client.handleJoin(gameMsg)
-	case username:
+	case setUsername:
 		go client.handleUsername(gameMsg)
 	case ready:
 		go client.handleReady()
@@ -99,16 +170,32 @@ func (c *Client) unreadyPlayer() error {
 	return setRedisHash(c.Ctx, c.UserID, string(ready), string(isNotReady))
 }
 
+func (c *Client) backupClientData() error {
+	err := setRedisHash(c.Ctx, c.UserID, string(roomID), c.RoomID)
+	if err != nil {
+		return errors.New("Error backing up room id")
+	}
+	err = setRedisHash(c.Ctx, c.UserID, string(username), c.Username)
+	if err != nil {
+		return errors.New("Error backing up username")
+	}
+	return nil
+}
+
+func (c *Client) deleteClientBackup() error {
+	return deleteRedisHash(c.Ctx, c.UserID)
+}
+
 func (c *Client) handleCreate() {
 	room, err := createRoom()
 	if err != nil {
 		log.Printf("Error creating new room: %f", err)
 		return
 	}
-	c.Mutex.Lock()
-	c.RoomID = room.ID
-	c.Mutex.Unlock()
-	subscribeClient(c)
+	err = c.joinRoom(room.ID)
+	if err != nil {
+		log.Printf("Error joining room: %v", err)
+	}
 	usernamePage, err := generateUsername()
 	if err != nil {
 		log.Printf("Error creating username page template: %v", err)
@@ -119,15 +206,10 @@ func (c *Client) handleCreate() {
 
 func (c *Client) handleJoin(gameMsg *GameMessage) {
 	roomID := gameMsg.Msg
-	exists := checkMembershipRedisSet(c.Ctx, roomList, roomID)
-	if !exists {
-		log.Printf("Room %s does not exist", gameMsg.Msg)
-		return
+	err := c.joinRoom(roomID)
+	if err != nil {
+		log.Printf("Error joining room: %v", err)
 	}
-	c.Mutex.Lock()
-	c.RoomID = roomID
-	c.Mutex.Unlock()
-	subscribeClient(c)
 	usernamePage, err := generateUsername()
 	if err != nil {
 		log.Printf("Error creating username page template: %v", err)
@@ -138,14 +220,11 @@ func (c *Client) handleJoin(gameMsg *GameMessage) {
 
 func (c *Client) handleUsername(gameMsg *GameMessage) {
 	c.Mutex.Lock()
-	c.UserID = shortuuid.New()
+	// c.UserID = shortuuid.New()
 	c.Username = gameMsg.Msg
 	c.Mutex.Unlock()
-	err := setRedisHash(c.Ctx, c.UserID, string(username), c.Username)
-	if err != nil {
-		log.Printf("Error setting player username in database: %v", err)
-	}
-	err = setRedisHash(c.Ctx, c.UserID, string(ready), false)
+	log.Println(c.UserID)
+	err := setRedisHash(c.Ctx, c.UserID, string(ready), false)
 	if err != nil {
 		log.Printf("Error initializing player status: %v", err)
 	}
@@ -193,7 +272,11 @@ func (c *Client) updatePlayerList(players []byte) {
 }
 
 func (c *Client) loadGame(gamePage []byte) {
-	err := c.unreadyPlayer()
+	err := c.backupClientData()
+	if err != nil {
+		log.Println(err)
+	}
+	err = c.unreadyPlayer()
 	if err != nil {
 		log.Printf("Error setting player status to unready: %v", err)
 		return
@@ -202,16 +285,18 @@ func (c *Client) loadGame(gamePage []byte) {
 }
 
 func (c *Client) handleClose() {
+	/* err := c.deleteClientBackup()
+	if err != nil {
+		log.Printf("Error deleting client backup data: %v", err)
+	} */
 	closeMsg, err := json.Marshal(newPSMessage(CloseWS, c.UserID, c.UserID))
 	if err != nil {
 		log.Printf("Error encoding close message: %v", err)
-		return
 	}
 	log.Printf("User %s disconnected", c.UserID)
 	err = publishClientMessage(c, closeMsg)
 	if err != nil {
 		log.Printf("Error publishing close message: %v", err)
-		return
 	}
 	c.Cancel()
 }

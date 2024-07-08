@@ -25,8 +25,6 @@ type Room struct {
 	Cancel         context.CancelFunc
 }
 
-const roomList string = "roomList"
-
 func createRoom() (*Room, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	room := &Room{
@@ -38,7 +36,7 @@ func createRoom() (*Room, error) {
 		Ctx:            ctx,
 		Cancel:         cancel,
 	}
-	err := addToRedisSet(ctx, roomList, room.ID)
+	err := roomRepo.AddRoom(ctx, room.ID)
 	if err != nil {
 		log.Printf("Error adding room to room list: %v", err)
 		return nil, err
@@ -152,6 +150,10 @@ func (r *Room) generateQuestion() (string, error) {
 	return question, setRedisHash(r.Ctx, r.ID, "question", question)
 }
 
+func (r *Room) backupRoomState(template []byte) error {
+	return setRedisHash(r.Ctx, r.ID, string(roomState), template)
+}
+
 func (r *Room) readPump() {
 	defer r.Pubsub.Close()
 
@@ -170,6 +172,8 @@ func (r *Room) readPump() {
 			switch psEvent.Event {
 			case newUser:
 				go r.addUser(psEvent.Sender, psEvent.Msg)
+			case reconnect:
+				go r.connectUser(psEvent.Sender, psEvent.Msg)
 			case userReady:
 				go r.handleReadySignal(psEvent.Msg)
 			case getPicture:
@@ -185,13 +189,19 @@ func (r *Room) readPump() {
 	}
 }
 
-func (r *Room) addUser(userID, username string) {
+// Updates the room's internal state with the provided user information.
+func (r *Room) connectUser(userID, username string) {
 	err := r.addPlayerToLeaderboard(userID)
 	if err != nil {
 		log.Printf("Error adding user to leaderboard: %v", err)
 		return
 	}
 	r.addPlayerToRoom(userID, username)
+}
+
+// Connects user and publishes the updated list of players.
+func (r *Room) addUser(userID, username string) {
+	r.connectUser(userID, username)
 	players := r.getPlayers()
 	pld := &playerListData{Players: players}
 	playerListBytes, err := generatePlayerList(pld)
@@ -260,6 +270,10 @@ func (r *Room) handleReadySignal(userID string) {
 		log.Printf("Error creating game page template: %v", err)
 		return
 	}
+	err = r.backupRoomState(gamePageBytes)
+	if err != nil {
+		log.Printf("Error backing up game page data: %v", err)
+	}
 	gamePage, err := json.Marshal(newPSMessage(enterGame, r.ID, string(gamePageBytes)))
 	if err != nil {
 		log.Printf("Error marshalling game page: %v", err)
@@ -279,7 +293,7 @@ func (r *Room) disconnectUser(userID string) {
 	}
 
 	if r.getPlayerCount() == 0 {
-		err := deleteFromRedisSet(r.Ctx, roomList, r.ID)
+		err := roomRepo.DeleteRoom(r.Ctx, r.ID)
 		if err != nil {
 			log.Printf("Error deleting room from roomList: %v", err)
 		}
@@ -331,6 +345,10 @@ func (r *Room) sendVotingPage() {
 	if err != nil {
 		log.Printf("Error creating voting page template: %v", err)
 		return
+	}
+	err = r.backupRoomState(votingPageBytes)
+	if err != nil {
+		log.Printf("Error backing up game page data: %v", err)
 	}
 	votingPage, err := json.Marshal(newPSMessage(votePage, r.ID, string(votingPageBytes)))
 	if err != nil {
@@ -409,6 +427,10 @@ func (r *Room) sendLeaderboard(scores map[string]int, lb map[string]int) {
 	if err != nil {
 		log.Printf("Error creating leaderboard page template: %v", err)
 		return
+	}
+	err = r.backupRoomState(leaderboardPageBytes)
+	if err != nil {
+		log.Printf("Error backing up game page data: %v", err)
 	}
 	leaderboardPage, err := json.Marshal(
 		newPSMessage(sendLeaderboard, r.ID, string(leaderboardPageBytes)),

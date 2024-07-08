@@ -1,10 +1,12 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"net/url"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/vmporuri/prompt-and-paint/internal/game"
 )
@@ -24,15 +26,27 @@ func setupWSOriginCheck(cfg *Config) {
 	}
 }
 
+func getCookie(r *http.Request) (string, error) {
+	userID, err := r.Cookie("userID")
+	if err != nil {
+		return "", errors.New("No userID cookie present")
+	}
+	return userID.Value, nil
+}
+
 func handleWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-
 	defer conn.Close()
-	client := game.NewClient(conn)
+
+	userID, err := getCookie(r)
+	if err != nil {
+		userID = uuid.NewString()
+	}
+	client := game.NewClient(conn, userID)
 	go writePump(client)
 
 	for {
