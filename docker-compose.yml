@@ -16,6 +16,6 @@ services:
   go:
     build: .
     image: vmporuri/prompt-and-paint
-    env_file: "api-key.env"
+    env_file: "secrets.env"
     depends_on:
       - redis

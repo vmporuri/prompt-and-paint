@@ -12,20 +12,27 @@ import (
 func registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", http.MethodGet)
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		_, err := r.Cookie("userID")
+		_, err := r.Cookie(jwtCookie)
 		if err != nil {
-			http.SetCookie(w, &http.Cookie{
-				Name:     "userID",
-				Value:    uuid.NewString(),
-				Path:     "/",
-				MaxAge:   3600,
-				Secure:   true,
-				SameSite: http.SameSiteLaxMode,
-			})
+			token, err := makeUserIDToken(uuid.NewString())
+			if err != nil {
+				log.Printf("Error printing %v", err)
+			} else {
+				http.SetCookie(w, &http.Cookie{
+					Name:     jwtCookie,
+					Value:    token,
+					Path:     "/",
+					MaxAge:   3600,
+					Secure:   true,
+					HttpOnly: true,
+					SameSite: http.SameSiteStrictMode,
+				})
+			}
 		}
 		tmpl, err := template.ParseFiles(filepath.Join("templates", "index.html"))
 		if err != nil {
@@ -39,6 +46,7 @@ func registerRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("/game", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", http.MethodGet)
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}

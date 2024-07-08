@@ -27,11 +27,15 @@ func setupWSOriginCheck(cfg *Config) {
 }
 
 func getCookie(r *http.Request) (string, error) {
-	userID, err := r.Cookie("userID")
+	tokenString, err := r.Cookie(jwtCookie)
 	if err != nil {
 		return "", errors.New("No userID cookie present")
 	}
-	return userID.Value, nil
+	userID, err := parseUserIDToken(tokenString.Value)
+	if err != nil {
+		return "", err
+	}
+	return userID, nil
 }
 
 func handleWS(w http.ResponseWriter, r *http.Request) {
@@ -44,6 +48,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := getCookie(r)
 	if err != nil {
+		log.Println(err)
 		userID = uuid.NewString()
 	}
 	client := game.NewClient(conn, userID)

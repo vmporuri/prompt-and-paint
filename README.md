@@ -9,9 +9,10 @@ A fun new party game: Prompt and Paint!
 
 Run the app locally with Docker.
 
-1. Add your OpenAI API key to api-key.env in the top-level project directory.
+1. Add your secret key and OpenAI API key to secrets.env in the top-level project directory.
 
 ```bash
+KEY="$YOUR_SECRET_KEY"
 OPENAI_API_KEY="$YOUR_API_KEY"
 ```
 
