@@ -37,9 +37,11 @@
       {{ end }}
     </tbody>
   </table>
-  <a id="leave" href="/">
+  <form id="leave" ws-send>
+    <input type="hidden" name="event" value="leave" />
+    <input type="hidden" name="msg" value="leave" />
     <button>Leave Game</button>
-  </a>
+  </form>
   <form id="ready" ws-send>
     <input type="hidden" name="event" value="ready" />
     <input type="hidden" name="msg" value="ready" />

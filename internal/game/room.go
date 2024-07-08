@@ -180,7 +180,7 @@ func (r *Room) readPump() {
 				go r.handleUserSubmission(psEvent.Sender)
 			case vote:
 				go r.handleVote(psEvent.Sender, psEvent.Msg)
-			case CloseWS:
+			case leave, CloseWS:
 				go r.disconnectUser(psEvent.Msg)
 			}
 		case <-r.Ctx.Done():

@@ -18,6 +18,6 @@ const (
 	pickPicture     gameEvent = "pick-picture"
 	vote            gameEvent = "vote"
 	sendLeaderboard gameEvent = "send-leaderboard"
+	leave           gameEvent = "leave"
+	CloseWS         gameEvent = "close-ws"
 )
-
-const CloseWS gameEvent = "close-ws"

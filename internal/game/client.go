@@ -127,6 +127,8 @@ func DispatchGameEvent(client *Client, gameMsg *GameMessage) {
 		go client.handlePicture(gameMsg)
 	case vote:
 		go client.handleVote(gameMsg)
+	case leave:
+		go client.handleLeave()
 	case CloseWS:
 		go client.handleClose()
 	}
@@ -220,10 +222,8 @@ func (c *Client) handleJoin(gameMsg *GameMessage) {
 
 func (c *Client) handleUsername(gameMsg *GameMessage) {
 	c.Mutex.Lock()
-	// c.UserID = shortuuid.New()
 	c.Username = gameMsg.Msg
 	c.Mutex.Unlock()
-	log.Println(c.UserID)
 	err := setRedisHash(c.Ctx, c.UserID, string(ready), false)
 	if err != nil {
 		log.Printf("Error initializing player status: %v", err)
@@ -284,11 +284,18 @@ func (c *Client) loadGame(gamePage []byte) {
 	c.WriteChan <- gamePage
 }
 
-func (c *Client) handleClose() {
-	/* err := c.deleteClientBackup()
+func (c *Client) handleLeave() {
+	err := c.deleteClientBackup()
 	if err != nil {
 		log.Printf("Error deleting client backup data: %v", err)
-	} */
+	}
+	c.Conn.Close()
+}
+
+func (c *Client) handleClose() {
+	defer c.Cancel()
+	defer close(c.WriteChan)
+
 	closeMsg, err := json.Marshal(newPSMessage(CloseWS, c.UserID, c.UserID))
 	if err != nil {
 		log.Printf("Error encoding close message: %v", err)
@@ -298,7 +305,6 @@ func (c *Client) handleClose() {
 	if err != nil {
 		log.Printf("Error publishing close message: %v", err)
 	}
-	c.Cancel()
 }
 
 func (c *Client) handlePrompt(gameMsg *GameMessage) {
