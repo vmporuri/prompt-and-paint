@@ -14,10 +14,20 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type roomState string
+
+const (
+	waiting = "waiting"
+	playing = "playing"
+	voting  = "voting"
+	scoring = "scoring"
+)
+
 type Room struct {
 	ID             string
 	Players        map[string]string
 	PlayerStatuses map[string]bool
+	State          roomState
 	ReadyCount     int
 	Pubsub         *redis.PubSub
 	Mutex          *sync.RWMutex
@@ -31,6 +41,7 @@ func createRoom() (*Room, error) {
 		ID:             shortuuid.New(),
 		Players:        make(map[string]string),
 		PlayerStatuses: make(map[string]bool),
+		State:          waiting,
 		ReadyCount:     0,
 		Mutex:          &sync.RWMutex{},
 		Ctx:            ctx,
@@ -151,7 +162,13 @@ func (r *Room) generateQuestion() (string, error) {
 }
 
 func (r *Room) backupRoomState(template []byte) error {
-	return setRedisHash(r.Ctx, r.ID, string(roomState), template)
+	return setRedisHash(r.Ctx, r.ID, string(roomBackup), template)
+}
+
+func (r *Room) updateRoomState(newState roomState) {
+	r.Mutex.Lock()
+	r.State = newState
+	r.Mutex.Unlock()
 }
 
 func (r *Room) readPump() {
@@ -186,6 +203,25 @@ func (r *Room) readPump() {
 		case <-r.Ctx.Done():
 			return
 		}
+	}
+}
+
+// Checks if all players are ready. If so, triggers appropriate update function.
+func (r *Room) checkRoomState() {
+	playerCount := r.getPlayerCount()
+	readyCount := r.getReadyCount()
+	if readyCount == 0 || readyCount < playerCount {
+		return
+	}
+	r.resetReadyCount()
+
+	switch r.State {
+	case waiting, scoring:
+		r.sendGamePage()
+	case playing:
+		r.sendVotingPage()
+	case voting:
+		r.countVotes()
 	}
 }
 
@@ -242,14 +278,10 @@ func (r *Room) handleReadySignal(userID string) {
 		log.Printf("Error updating ready count: %v", err)
 		return
 	}
+	r.checkRoomState()
+}
 
-	playerCount := r.getPlayerCount()
-	readyCount := r.getReadyCount()
-	if readyCount == 0 || readyCount < playerCount {
-		return
-	}
-
-	r.resetReadyCount()
+func (r *Room) sendGamePage() {
 	question, err := r.getQuestion()
 	if err != nil {
 		question, err = r.generateQuestion()
@@ -284,9 +316,11 @@ func (r *Room) handleReadySignal(userID string) {
 		log.Printf("Error publishing game page: %v", err)
 		return
 	}
+	r.updateRoomState(playing)
 }
 
 func (r *Room) disconnectUser(userID string) {
+	r.deletePlayerFromRoom(userID)
 	err := r.deletePlayerFromLeaderboard(userID)
 	if err != nil {
 		log.Printf("Error removing player from database: %v", err)
@@ -299,6 +333,7 @@ func (r *Room) disconnectUser(userID string) {
 		}
 		r.Cancel()
 	}
+	r.checkRoomState()
 }
 
 func (r *Room) handleUserSubmission(userID string) {
@@ -311,14 +346,7 @@ func (r *Room) handleUserSubmission(userID string) {
 }
 
 func (r *Room) sendVotingPage() {
-	playerCount := r.getPlayerCount()
-	readyCount := r.getReadyCount()
-	if readyCount == 0 || readyCount < playerCount {
-		return
-	}
-
-	r.resetReadyCount()
-	answers := make([]string, 0, playerCount)
+	answers := make([]string, 0, r.getPlayerCount())
 	players := r.getPlayers()
 	for player := range players {
 		ans, err := getRedisHash(r.Ctx, player, string(picture))
@@ -360,6 +388,7 @@ func (r *Room) sendVotingPage() {
 		log.Printf("Error publishing voting page: %v", err)
 		return
 	}
+	r.updateRoomState(voting)
 }
 
 func (r *Room) handleVote(userID, voteURL string) {
@@ -377,13 +406,6 @@ func (r *Room) handleVote(userID, voteURL string) {
 }
 
 func (r *Room) countVotes() {
-	playerCount := r.getPlayerCount()
-	readyCount := r.getReadyCount()
-	if readyCount == 0 || readyCount < playerCount {
-		return
-	}
-
-	r.resetReadyCount()
 	scores := make(map[string]int)
 	players := r.getPlayers()
 	for player, username := range players {
@@ -444,4 +466,5 @@ func (r *Room) sendLeaderboard(scores map[string]int, lb map[string]int) {
 		log.Printf("Error publishing leaderboard: %v", err)
 		return
 	}
+	r.updateRoomState(scoring)
 }

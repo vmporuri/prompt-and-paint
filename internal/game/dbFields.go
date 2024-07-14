@@ -10,5 +10,5 @@ const (
 	roomList    dbField = "room-list"
 	roomID      dbField = "room-id"
 	leaderboard dbField = "leaderboard"
-	roomState   dbField = "room-state"
+	roomBackup  dbField = "room-backup"
 )

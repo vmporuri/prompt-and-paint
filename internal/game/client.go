@@ -108,7 +108,7 @@ func (c *Client) joinRoom(roomID string) error {
 
 // Fetches room state in case of reconnection or any other error.
 func (c *Client) fetchRoomState() (string, error) {
-	return getRedisHash(c.Ctx, c.RoomID, string(roomState))
+	return getRedisHash(c.Ctx, c.RoomID, string(roomBackup))
 }
 
 func DispatchGameEvent(client *Client, gameMsg *GameMessage) {
