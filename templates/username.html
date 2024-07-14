@@ -1,8 +1,25 @@
-<div id="game">
-  <form ws-send>
-    <input type="hidden" id="event" name="event" value="set-username" />
-    <label for="username">Enter Username:</label>
-    <input type="text" id="username" name="msg" pattern="\w+" required />
-    <button type="submit">Submit</button>
-  </form>
+<div id="game" class="h-full">
+  <div
+    class="flex flex-1 h-full justify-evenly items-center text-xl text-white"
+  >
+    <form ws-send>
+      <input type="hidden" id="event" name="event" value="set-username" />
+      <label for="username">Enter Username:</label>
+      <input
+        type="text"
+        id="username"
+        name="msg"
+        pattern="\w+"
+        required
+        class="p-4 text-black rounded-xl"
+      />
+      <button
+        type="submit"
+        class="p-4 bg-green-600 hover:bg-green-400 rounded-xl"
+        aria-label="Submit Username"
+      >
+        Submit
+      </button>
+    </form>
+  </div>
 </div>

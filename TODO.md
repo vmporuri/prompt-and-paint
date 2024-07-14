@@ -1,5 +1,6 @@
 # To-Do List
 
-- Style webpage with CSS!
+- Fix event type leakage to client
+- Fix game stalling when user leaves
 - Update documentation
 - Update README.md

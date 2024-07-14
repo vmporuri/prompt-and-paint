@@ -1,8 +1,14 @@
-<div id="image-preview">
-  <img src="{{ .URL }}" />
-  <form id="answer" ws-send>
+<div id="image-preview" class="m-4">
+  <img src="{{ .URL }}" class="mx-auto w-1/2" />
+  <form id="answer" class="mx-auto my-4 text-center" ws-send>
     <input type="hidden" name="event" value="pick-picture" />
     <input type="hidden" name="msg" value="{{ .URL }}" />
-    <button type="submit">Submit Picture</button>
+    <button
+      type="submit"
+      aria-label="Submit Prompt"
+      class="p-4 bg-green-600 hover:bg-green-400 rounded-xl"
+    >
+      Submit Prompt
+    </button>
   </form>
 </div>

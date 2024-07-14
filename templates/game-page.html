@@ -1,10 +1,25 @@
-<div id="game">
-  <h2>{{ .Question }}</h2>
-  <form id="answer" ws-send>
-    <input type="hidden" name="event" value="prompt" />
-    <label for="prompt">Enter Your Prompt:</label>
-    <textarea id="prompt" name="msg" required></textarea>
-    <button type="submit">Submit Prompt</button>
-  </form>
-  <div id="image-preview"></div>
+<div id="game" class="h-full">
+  <div
+    class="flex flex-col flex-1 h-full justify-evenly items-center text-xl text-white"
+  >
+    <h2 class="m-12 text-3xl">{{ .Question }}</h2>
+    <form id="answer" class="flex flex-col h-2/3 w-2/3 m-4" ws-send>
+      <input type="hidden" name="event" value="prompt" />
+      <label for="prompt" class="my-2">Enter Your Prompt:</label>
+      <textarea
+        id="prompt"
+        class="flex-1 p-4 rounded-xl text-black"
+        name="msg"
+        required
+      ></textarea>
+      <button
+        type="submit"
+        aria-label="Submit Prompt"
+        class="my-4 p-4 bg-green-600 hover:bg-green-400 rounded-xl"
+      >
+        Submit Picture
+      </button>
+    </form>
+    <div id="image-preview"></div>
+  </div>
 </div>

@@ -1,16 +1,34 @@
-<div id="game">
-  <form id="vote-form" ws-send>
-    <input type="hidden" name="event" value="vote" />
-    {{ range $i, $url := .URLs }}
-    <input
-      id="pic{{ $i }}"
-      type="radio"
-      name="msg"
-      value="{{ $url }}"
-      required
-    />
-    <label for="pic{{ $i }}"><img src="{{ $url }}" /></label>
-    {{ end }}
-    <button type="submit">Cast Vote</button>
-  </form>
+<div id="game" class="h-full">
+  <div
+    class="flex flex-col flex-1 h-full justify-between align-center text-xl text-white"
+  >
+    <form id="vote-form" class="flex flex-col justify-between" ws-send>
+      <input type="hidden" name="event" value="vote" />
+      <div class="m-12 grid grid-cols-3 gap-8">
+        {{ range $i, $url := .URLs }}
+        <input
+          id="pic{{ $i }}"
+          class="hidden peer"
+          type="radio"
+          name="msg"
+          value="{{ $url }}"
+          required
+        />
+        <label
+          for="pic{{ $i }}"
+          class="peer-checked:shadow-white peer-checked:shadow-2xl"
+        >
+          <img src="{{ $url }}" />
+        </label>
+        {{ end }}
+      </div>
+      <button
+        type="submit"
+        class="m-12 p-4 bg-green-600 hover:bg-green-400 rounded-xl"
+        aria-label="I'm Ready!"
+      >
+        Cast Vote
+      </button>
+    </form>
+  </div>
 </div>

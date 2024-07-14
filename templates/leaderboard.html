@@ -1,50 +1,66 @@
-<div id="game">
-  <table id="scores">
-    <caption>
-      Scores
-    </caption>
-    <thead>
-      <tr>
-        <th>Players</th>
-        <th>Score</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{ range $username, $score := .Scores }}
-      <tr>
-        <td>{{ $username }}</td>
-        <td>{{ $score }}</td>
-      </tr>
-      {{ end }}
-    </tbody>
-  </table>
-  <table id="leaderboard">
-    <caption>
-      Leaderboard
-    </caption>
-    <thead>
-      <tr>
-        <th>Players</th>
-        <th>Score</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{ range $username, $score := .Leaderboard }}
-      <tr>
-        <td>{{ $username }}</td>
-        <td>{{ $score }}</td>
-      </tr>
-      {{ end }}
-    </tbody>
-  </table>
-  <form id="leave" ws-send>
-    <input type="hidden" name="event" value="leave" />
-    <input type="hidden" name="msg" value="leave" />
-    <button>Leave Game</button>
-  </form>
-  <form id="ready" ws-send>
-    <input type="hidden" name="event" value="ready" />
-    <input type="hidden" name="msg" value="ready" />
-    <button>Ready for Next Round</button>
-  </form>
+<div id="game" class="h-full">
+  <div
+    class="flex flex-col flex-1 h-full justify-evenly items-center text-xl text-white"
+  >
+    <table id="scores" class="m-4 w-1/2 table-auto">
+      <caption class="m-4 font-bold text-3xl">
+        Scores
+      </caption>
+      <thead>
+        <tr class="bg-gray-700">
+          <th class="p-2 border border-slate-600">Players</th>
+          <th class="p-2 border border-slate-600">Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range $username, $score := .Scores }}
+        <tr class="text-center">
+          <td class="p-2 border border-slate-700">{{ $username }}</td>
+          <td class="p-2 border border-slate-700">{{ $score }}</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    <table id="leaderboard" class="m-4 w-1/2 table-auto">
+      <caption class="m-4 font-bold text-3xl">
+        Leaderboard
+      </caption>
+      <thead>
+        <tr class="bg-gray-700">
+          <th class="p-2 border border-slate-600">Players</th>
+          <th class="p-2 border border-slate-600">Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range $username, $score := .Leaderboard }}
+        <tr class="text-center">
+          <td class="p-2 border border-slate-700">{{ $username }}</td>
+          <td class="p-2 border border-slate-700">{{ $score }}</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+    <form id="leave" ws-send>
+      <input type="hidden" name="event" value="leave" />
+      <input type="hidden" name="msg" value="leave" />
+      <button
+        type="submit"
+        class="p-4 bg-blue-600 hover:bg-blue-400 rounded-xl"
+        aria-label="Join Game"
+      >
+        Leave Game
+      </button>
+    </form>
+    <form id="ready" ws-send>
+      <input type="hidden" name="event" value="ready" />
+      <input type="hidden" name="msg" value="ready" />
+      <button
+        type="submit"
+        id="create-room"
+        class="p-4 bg-green-600 hover:bg-green-400 rounded-xl"
+      >
+        Ready for Next Round
+      </button>
+    </form>
+  </div>
 </div>

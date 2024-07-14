@@ -5,24 +5,56 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Prompt and Paint!</title>
   </head>
-  <body>
-    <h1>Prompt and Paint!</h1>
-    <div id="ws" hx-ext="ws" ws-connect="/game">
-      <div id="game">
-        <form ws-send>
-          <input type="hidden" id="event" name="event" value="create-room" />
-          <label for="create-room">Create New Game:</label>
-          <button type="submit" id="create-room">Create Game</button>
-        </form>
-        <form ws-send>
-          <input type="hidden" id="event" name="event" value="join-room" />
-          <label for="room-code">Enter Room Code:</label>
-          <input type="text" id="room-code" name="msg" pattern="\w+" required />
-          <button type="submit">Join Game</button>
-        </form>
+  <body class="bg-gray-900 flex flex-col h-screen">
+    <header>
+      <h1 class="text-white text-6xl text-center font-extrabold m-8">
+        Prompt and Paint!
+      </h1>
+      <hr />
+    </header>
+    <div id="ws" class="flex-1" hx-ext="ws" ws-connect="/game">
+      <div id="game" class="h-full">
+        <div
+          class="flex flex-1 h-full justify-evenly items-center text-xl text-white"
+        >
+          <form class="flex flex-col gap-2" ws-send>
+            <input type="hidden" id="event" name="event" value="create-room" />
+            <label>Create New Game</label>
+            <button
+              type="submit"
+              id="create-room"
+              class="p-4 bg-green-600 hover:bg-green-400 rounded-xl"
+            >
+              Create Game:
+            </button>
+          </form>
+          <form class="flex flex-col gap-2" ws-send>
+            <input type="hidden" id="event" name="event" value="join-room" />
+            <label>Enter Room Code:</label>
+            <div>
+              <input
+                type="text"
+                id="room-code"
+                name="msg"
+                pattern="\w+"
+                placeholder="Enter Room Code:"
+                required
+                class="p-4 text-black rounded-xl"
+              />
+              <button
+                type="submit"
+                class="p-4 bg-blue-600 hover:bg-blue-400 rounded-xl"
+                aria-label="Join Game"
+              >
+                Join Game
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </body>
+  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/htmx.org@2.0.0"></script>
   <script src="https://unpkg.com/htmx-ext-ws@2.0.0/ws.js"></script>
   <script>
