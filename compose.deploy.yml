@@ -1,0 +1,9 @@
+services:
+  haproxy:
+    image: haproxy:3.0-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./config/haproxy:/usr/local/etc/haproxy
+    depends_on:
+      - go

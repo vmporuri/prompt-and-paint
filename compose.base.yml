@@ -1,17 +1,11 @@
 name: prompt-and-paint
 
 services:
-  haproxy:
-    image: haproxy:3.0-alpine
-    ports:
-      - "8080:80"
-    volumes:
-      - ./config/haproxy:/usr/local/etc/haproxy
-    depends_on:
-      - go
-
   redis:
     image: redis:7.4-rc-alpine
+    volumes:
+      - redis-data:/data
+
 
   go:
     build: .
@@ -19,3 +13,6 @@ services:
     env_file: "secrets.env"
     depends_on:
       - redis
+
+volumes:
+  redis-data:

@@ -25,7 +25,7 @@ docker build -t vmporuri/prompt-and-paint .
 3. Start the application with Docker Compose.
 
 ```bash
-docker compose up
+docker compose -f compose.base.yml -f compose.deploy.yml up
 ```
 
 4. Visit URL in browser.
