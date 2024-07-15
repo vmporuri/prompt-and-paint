@@ -79,6 +79,16 @@ func (r *Room) deletePlayerFromRoom(userID string) {
 	delete(r.Players, userID)
 	delete(r.PlayerStatuses, userID)
 	r.Mutex.Unlock()
+
+	playerState, err := getRedisHash(r.Ctx, userID, string(ready))
+	if err != nil {
+		log.Printf("Error fetching player status: %v", err)
+	}
+	if playerState == string(isReady) {
+		r.Mutex.Lock()
+		r.ReadyCount--
+		r.Mutex.Unlock()
+	}
 }
 
 func (r *Room) getLeaderboardKey() string {
@@ -123,7 +133,7 @@ func (r *Room) getReadyCount() int {
 	return r.ReadyCount
 }
 
-func (r *Room) updateReadyCount(userID string) error {
+func (r *Room) incrReadyCount(userID string) error {
 	status, err := getRedisHash(r.Ctx, userID, string(ready))
 	if err != nil {
 		return err
@@ -273,7 +283,7 @@ func (r *Room) addUser(userID, username string) {
 }
 
 func (r *Room) handleReadySignal(userID string) {
-	err := r.updateReadyCount(userID)
+	err := r.incrReadyCount(userID)
 	if err != nil {
 		log.Printf("Error updating ready count: %v", err)
 		return
@@ -337,12 +347,12 @@ func (r *Room) disconnectUser(userID string) {
 }
 
 func (r *Room) handleUserSubmission(userID string) {
-	err := r.updateReadyCount(userID)
+	err := r.incrReadyCount(userID)
 	if err != nil {
 		log.Printf("Error updating ready count: %v", err)
 		return
 	}
-	r.sendVotingPage()
+	r.checkRoomState()
 }
 
 func (r *Room) sendVotingPage() {
@@ -392,7 +402,7 @@ func (r *Room) sendVotingPage() {
 }
 
 func (r *Room) handleVote(userID, voteURL string) {
-	err := r.updateReadyCount(userID)
+	err := r.incrReadyCount(userID)
 	if err != nil {
 		log.Printf("Error updating ready count: %v", err)
 		return
@@ -402,7 +412,7 @@ func (r *Room) handleVote(userID, voteURL string) {
 		log.Printf("Error updating vote counts: %v", err)
 		return
 	}
-	r.countVotes()
+	r.checkRoomState()
 }
 
 func (r *Room) countVotes() {
