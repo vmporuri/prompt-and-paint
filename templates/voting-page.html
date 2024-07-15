@@ -8,7 +8,7 @@
         {{ range $i, $url := .URLs }}
         <input
           id="pic{{ $i }}"
-          class="hidden peer"
+          class="hidden peer/pic{{ $i }}"
           type="radio"
           name="msg"
           value="{{ $url }}"
@@ -16,7 +16,7 @@
         />
         <label
           for="pic{{ $i }}"
-          class="peer-checked:shadow-white peer-checked:shadow-2xl"
+          class="peer-checked/pic{{ $i }}:shadow-white peer-checked/pic{{ $i }}:shadow-2xl"
         >
           <img src="{{ $url }}" />
         </label>
