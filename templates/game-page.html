@@ -17,9 +17,15 @@
         aria-label="Submit Prompt"
         class="my-4 p-4 bg-green-600 hover:bg-green-400 rounded-xl"
       >
-        Submit Picture
+        Submit Prompt
       </button>
     </form>
     <div id="image-preview"></div>
   </div>
 </div>
+
+<script id="exit">
+  document.body.addEventListener("htmx:wsClose", function (evt) {
+    location.reload();
+  });
+</script>

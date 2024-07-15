@@ -29,7 +29,6 @@ func registerRoutes(mux *http.ServeMux) {
 					Path:     "/",
 					MaxAge:   3600,
 					Secure:   true,
-					HttpOnly: true,
 					SameSite: http.SameSiteStrictMode,
 				})
 			}

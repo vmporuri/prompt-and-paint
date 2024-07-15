@@ -1,6 +1,6 @@
 # To-Do List
 
-- Delete JWT after user leaves
+- Fix voting CSS shadows
 - Separate dev and deployment docker setups
 - Update documentation
 - Update README.md
