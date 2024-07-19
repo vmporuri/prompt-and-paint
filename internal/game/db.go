@@ -77,6 +77,12 @@ func incrRedisKey(ctx context.Context, key string) error {
 	return rdb.Incr(ctx, key).Err()
 }
 
+// Deletes key from the database.
+// Errors if the database query errors.
+func deleteRedisKey(ctx context.Context, key string) error {
+	return rdb.Del(ctx, key).Err()
+}
+
 // Adds to a specified set in database. Creates the set if it does not yet exist.
 // Errors if database query errors.
 func addToRedisSet(ctx context.Context, key string, member any) error {
@@ -115,12 +121,6 @@ func getRedisHash(ctx context.Context, hash, key string) (string, error) {
 	return rdb.HGet(ctx, hash, key).Result()
 }
 
-// Deletes hash (the whole hash, not just a key) from the database.
-// Errors if the database query errors.
-func deleteRedisHash(ctx context.Context, hash string) error {
-	return rdb.Del(ctx, hash).Err()
-}
-
 // Adds to a sorted set in the database. Creates the set if it does not exist.
 // Errors if the database query errors.
 func addToRedisSortedSet(ctx context.Context, key, member string) error {
@@ -130,6 +130,16 @@ func addToRedisSortedSet(ctx context.Context, key, member string) error {
 		return err
 	}
 	return rdb.Expire(ctx, key, expireTime).Err()
+}
+
+// Checks if member is indeed a member of the sorted set specified by key.
+// Errors if the database query errors.
+func checkMembershipRedisSortedSet(ctx context.Context, key, member string) (bool, error) {
+	_, err := rdb.ZScore(ctx, key, member).Result()
+	if err != nil && err != redis.Nil {
+		return false, err
+	}
+	return err == nil, nil
 }
 
 // Increments the score associated with a member of a sorted set by score.

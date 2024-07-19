@@ -201,7 +201,7 @@ func (c *Client) backupClientData() error {
 
 // Deletes a client backup. Used when a user sends an exit signal.
 func (c *Client) deleteClientBackup() error {
-	return deleteRedisHash(c.Ctx, c.UserID)
+	return deleteRedisKey(c.Ctx, c.UserID)
 }
 
 // Creates a new room and sends the user to the username page.

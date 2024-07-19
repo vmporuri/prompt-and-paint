@@ -69,6 +69,25 @@ func createRoom() (*Room, error) {
 	return room, nil
 }
 
+// Deletes the room. Used when all players have left the room.
+// Deletes all data associated with the room in the database and stops the
+// pub/sub read loop.
+func (r *Room) deleteRoom() {
+	err := deleteRedisKey(r.Ctx, r.ID)
+	if err != nil {
+		log.Printf("Error deleting room backup: %v", err)
+	}
+	err = deleteRedisKey(r.Ctx, r.getLeaderboardKey())
+	if err != nil {
+		log.Printf("Error deleting leaderboard: %v", err)
+	}
+	err = roomRepo.deleteRoom(r.Ctx, r.ID)
+	if err != nil {
+		log.Printf("Error deleting room from roomList: %v", err)
+	}
+	r.Cancel()
+}
+
 // Returns a map of userIDs to usernames for players connected to the room.
 func (r *Room) getPlayers() map[string]string {
 	return r.Players
@@ -124,8 +143,14 @@ func (r *Room) getLeaderboard() (map[string]int, error) {
 	return lb, nil
 }
 
-// Adds a new player to the leaderboard.
+// Adds a new player to the leaderboard if they haven't previously joined the game.
 func (r *Room) addPlayerToLeaderboard(userID string) error {
+	alreadyExists, err := checkMembershipRedisSortedSet(r.Ctx, r.getLeaderboardKey(), userID)
+	if err != nil {
+		log.Printf("Error checking if user is already on leaderboard: %v", err)
+	} else if alreadyExists {
+		return nil
+	}
 	return addToRedisSortedSet(r.Ctx, r.getLeaderboardKey(), userID)
 }
 
@@ -357,21 +382,13 @@ func (r *Room) sendGamePage() {
 	r.updateRoomState(playing)
 }
 
-// Part of the user disconnection handling sequence.
-// This part is agnostic to whether the disconnection was expected or not.
+// Handles user disconnection.
+// Agnostic to whether the disconnection was user-initiated or unexpected.
 func (r *Room) disconnectUser(userID string) {
 	r.deletePlayerFromRoom(userID)
-	err := r.deletePlayerFromLeaderboard(userID)
-	if err != nil {
-		log.Printf("Error removing player from database: %v", err)
-	}
 
 	if r.getPlayerCount() == 0 {
-		err := roomRepo.deleteRoom(r.Ctx, r.ID)
-		if err != nil {
-			log.Printf("Error deleting room from roomList: %v", err)
-		}
-		r.Cancel()
+		r.deleteRoom()
 	}
 	r.checkRoomState()
 }
