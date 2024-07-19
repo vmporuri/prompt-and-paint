@@ -58,8 +58,9 @@
   <script src="https://unpkg.com/htmx.org@2.0.0"></script>
   <script src="https://unpkg.com/htmx-ext-ws@2.0.0/ws.js"></script>
   <script id="exit">
-    document.body.addEventListener("htmx:wsClose", function (evt) {
+    let handleExit = function (evt) {
       location.reload();
-    });
+    };
+    document.body.addEventListener("htmx:wsClose", handleExit);
   </script>
 </html>

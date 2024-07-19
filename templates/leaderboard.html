@@ -66,9 +66,9 @@
 </div>
 
 <script id="exit">
-  document.body.addEventListener("htmx:wsClose", function (evt) {
+  handleExit = function (evt) {
     document.cookie =
       "jwt=; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict; Secure";
     location.reload();
-  });
+  };
 </script>

@@ -25,7 +25,7 @@
 </div>
 
 <script id="exit">
-  document.body.addEventListener("htmx:wsClose", function (evt) {
+  handleExit = function (evt) {
     location.reload();
-  });
+  };
 </script>
