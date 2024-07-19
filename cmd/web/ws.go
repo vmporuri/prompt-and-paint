@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"net/url"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -20,11 +19,13 @@ var upgrader = websocket.Upgrader{
 // If the origin does not match, does not upgrade the connection.
 func setupWSOriginCheck(cfg *Config) {
 	upgrader.CheckOrigin = func(r *http.Request) bool {
-		origin, err := url.Parse(r.Header.Get("origin"))
-		if err != nil {
-			return false
+		origin := r.Header.Get("origin")
+		for _, allowed := range cfg.Security.AllowedOrigins {
+			if origin == allowed {
+				return true
+			}
 		}
-		return origin.Hostname() == cfg.Server.Host
+		return false
 	}
 }
 
