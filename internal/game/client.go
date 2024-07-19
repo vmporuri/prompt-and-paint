@@ -1,3 +1,5 @@
+// Package game implements the Prompt to Paint game by handling game events,
+// relaying information between rooms and clients, and synchronizing clients.
 package game
 
 import (
@@ -11,6 +13,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// Represents a single user of the website. Associated with one WebSocket connection.
+// Acts as a middle-man for all incoming and outgoing messages.
+// Uniquely identified by UserID. Username does not have to be unique.
+// Connected to room specified by RoomID and communicates with Pubsub.
 type Client struct {
 	Conn      *websocket.Conn
 	UserID    string
@@ -23,6 +29,8 @@ type Client struct {
 	Cancel    context.CancelFunc
 }
 
+// A data structure that holds user input in the game.
+// Matches the structure of HTMX WebSocket messages and form data specified in the templates.
 type GameMessage struct {
 	Headers map[string]any `json:"HEADERS"`
 	Event   gameEvent      `json:"event"`
@@ -92,7 +100,7 @@ func (c *Client) reconnectClient() error {
 // Adds client to the room identified by roomID.
 // Returns a non-nil error if the room does not exist.
 func (c *Client) joinRoom(roomID string) error {
-	exists, err := roomRepo.LookupRoom(c.Ctx, roomID)
+	exists, err := roomRepo.lookupRoom(c.Ctx, roomID)
 	if err != nil {
 		return err
 	}
@@ -111,6 +119,7 @@ func (c *Client) fetchRoomState() (string, error) {
 	return getRedisHash(c.Ctx, c.RoomID, string(roomBackup))
 }
 
+// Dispatches the appropriate event handler for the given gameMsg.
 func DispatchGameEvent(client *Client, gameMsg *GameMessage) {
 	switch gameMsg.Event {
 	case create:
@@ -134,6 +143,8 @@ func DispatchGameEvent(client *Client, gameMsg *GameMessage) {
 	}
 }
 
+// Continually reads in all incoming messages from the pub/sub communication line.
+// Dispatches the appropriate event handler for the incoming internal event.
 func (c *Client) readPump() {
 	defer c.Pubsub.Close()
 
@@ -164,14 +175,18 @@ func (c *Client) readPump() {
 	}
 }
 
+// Marks a player as "ready" in the database (so the room can see).
 func (c *Client) readyPlayer() error {
 	return setRedisHash(c.Ctx, c.UserID, string(ready), string(isReady))
 }
 
+// Marks a player as "not ready" in the database.
 func (c *Client) unreadyPlayer() error {
 	return setRedisHash(c.Ctx, c.UserID, string(ready), string(isNotReady))
 }
 
+// Uploads user data to the database.
+// Used to persist player data in case of unexpected WebSocket disconnections.
 func (c *Client) backupClientData() error {
 	err := setRedisHash(c.Ctx, c.UserID, string(roomID), c.RoomID)
 	if err != nil {
@@ -184,10 +199,12 @@ func (c *Client) backupClientData() error {
 	return nil
 }
 
+// Deletes a client backup. Used when a user sends an exit signal.
 func (c *Client) deleteClientBackup() error {
 	return deleteRedisHash(c.Ctx, c.UserID)
 }
 
+// Creates a new room and sends the user to the username page.
 func (c *Client) handleCreate() {
 	room, err := createRoom()
 	if err != nil {
@@ -206,6 +223,8 @@ func (c *Client) handleCreate() {
 	c.WriteChan <- usernamePage
 }
 
+// Connects the user to the specified room (if it exists) and sends the user to
+// the username page.
 func (c *Client) handleJoin(gameMsg *GameMessage) {
 	roomID := gameMsg.Msg
 	err := c.joinRoom(roomID)
@@ -220,6 +239,7 @@ func (c *Client) handleJoin(gameMsg *GameMessage) {
 	c.WriteChan <- usernamePage
 }
 
+// Accepts the player's chosen username and sends the user to the waiting room.
 func (c *Client) handleUsername(gameMsg *GameMessage) {
 	c.Mutex.Lock()
 	c.Username = gameMsg.Msg
@@ -249,6 +269,7 @@ func (c *Client) handleUsername(gameMsg *GameMessage) {
 	c.WriteChan <- waitingPage
 }
 
+// Marks the player as ready to start the next round.
 func (c *Client) handleReady() {
 	err := c.readyPlayer()
 	if err != nil {
@@ -267,10 +288,12 @@ func (c *Client) handleReady() {
 	}
 }
 
+// Sends the updated player list after a new user joins.
 func (c *Client) updatePlayerList(players []byte) {
 	c.WriteChan <- players
 }
 
+// Sends the user to the game page. Called after all players have been marked as ready.
 func (c *Client) loadGame(gamePage []byte) {
 	err := c.backupClientData()
 	if err != nil {
@@ -284,6 +307,8 @@ func (c *Client) loadGame(gamePage []byte) {
 	c.WriteChan <- gamePage
 }
 
+// Handles a user submitted exit signal.
+// Unlike handleClose, handleLeave deletes all user backups.
 func (c *Client) handleLeave() {
 	err := c.deleteClientBackup()
 	if err != nil {
@@ -292,6 +317,8 @@ func (c *Client) handleLeave() {
 	c.Conn.Close()
 }
 
+// Handles an unexpected WebSocket disconnection by halting all goroutines associated
+// with the client.
 func (c *Client) handleClose() {
 	defer c.Cancel()
 	defer close(c.WriteChan)
@@ -307,6 +334,8 @@ func (c *Client) handleClose() {
 	}
 }
 
+// Handles the user submitted prompt by generating a picture and sending it back.
+// Note that prompts that OpenAI content violations will not generate a picture.
 func (c *Client) handlePrompt(gameMsg *GameMessage) {
 	url, err := generateAIPicture(c.Ctx, gameMsg.Msg)
 	if err != nil {
@@ -322,15 +351,7 @@ func (c *Client) handlePrompt(gameMsg *GameMessage) {
 	c.WriteChan <- picturePreview
 }
 
-func (c *Client) displayCandidates(candidates []byte) {
-	err := c.unreadyPlayer()
-	if err != nil {
-		log.Printf("Error setting player status to unready: %v", err)
-		return
-	}
-	c.WriteChan <- candidates
-}
-
+// Accepts the user's chosen picture. Stores in database and relays to the room.
 func (c *Client) handlePicture(gameMsg *GameMessage) {
 	err := c.readyPlayer()
 	if err != nil {
@@ -354,6 +375,17 @@ func (c *Client) handlePicture(gameMsg *GameMessage) {
 	}
 }
 
+// Displays all of the client submissions for the room.
+func (c *Client) displayCandidates(candidates []byte) {
+	err := c.unreadyPlayer()
+	if err != nil {
+		log.Printf("Error setting player status to unready: %v", err)
+		return
+	}
+	c.WriteChan <- candidates
+}
+
+// Handles the players vote by updating the database and relaying to the room.
 func (c *Client) handleVote(gameMsg *GameMessage) {
 	err := c.readyPlayer()
 	if err != nil {
@@ -372,6 +404,7 @@ func (c *Client) handleVote(gameMsg *GameMessage) {
 	}
 }
 
+// Displays the current leaderboard, which includes round scores and total scores.
 func (c *Client) displayLeaderboard(leaderboard []byte) {
 	err := c.unreadyPlayer()
 	if err != nil {

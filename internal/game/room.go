@@ -14,15 +14,20 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// A type that represents the current room state.
 type roomState string
 
 const (
-	waiting = "waiting"
-	playing = "playing"
-	voting  = "voting"
-	scoring = "scoring"
+	waiting roomState = "waiting"
+	playing roomState = "playing"
+	voting  roomState = "voting"
+	scoring roomState = "scoring"
 )
 
+// Represents a room of players, which conducts a match.
+// Used to store data for the match and synchronize the game events for the players.
+// Uniquely identified by RoomID.
+// Communicates with players over a pub/sub channel.
 type Room struct {
 	ID             string
 	Players        map[string]string
@@ -35,6 +40,7 @@ type Room struct {
 	Cancel         context.CancelFunc
 }
 
+// Creates a brand new room.
 func createRoom() (*Room, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	room := &Room{
@@ -47,7 +53,7 @@ func createRoom() (*Room, error) {
 		Ctx:            ctx,
 		Cancel:         cancel,
 	}
-	err := roomRepo.AddRoom(ctx, room.ID)
+	err := roomRepo.addRoom(ctx, room.ID)
 	if err != nil {
 		log.Printf("Error adding room to room list: %v", err)
 		return nil, err
@@ -63,10 +69,12 @@ func createRoom() (*Room, error) {
 	return room, nil
 }
 
+// Returns a map of userIDs to usernames for players connected to the room.
 func (r *Room) getPlayers() map[string]string {
 	return r.Players
 }
 
+// Adds a new user to the room.
 func (r *Room) addPlayerToRoom(userID, username string) {
 	r.Mutex.Lock()
 	r.Players[userID] = username
@@ -74,6 +82,7 @@ func (r *Room) addPlayerToRoom(userID, username string) {
 	r.Mutex.Unlock()
 }
 
+// Deletes a player from the room.
 func (r *Room) deletePlayerFromRoom(userID string) {
 	r.Mutex.Lock()
 	delete(r.Players, userID)
@@ -91,10 +100,12 @@ func (r *Room) deletePlayerFromRoom(userID string) {
 	}
 }
 
+// Gets the key for the leaderboard stored in the database.
 func (r *Room) getLeaderboardKey() string {
 	return fmt.Sprintf("%s:%s", r.ID, leaderboard)
 }
 
+// Retrieves the leaderboard from the database.
 func (r *Room) getLeaderboard() (map[string]int, error) {
 	players := r.getPlayers()
 	lbWithIDs, err := getRedisSortedSetWithScores(r.Ctx, r.getLeaderboardKey())
@@ -113,26 +124,32 @@ func (r *Room) getLeaderboard() (map[string]int, error) {
 	return lb, nil
 }
 
+// Adds a new player to the leaderboard.
 func (r *Room) addPlayerToLeaderboard(userID string) error {
 	return addToRedisSortedSet(r.Ctx, r.getLeaderboardKey(), userID)
 }
 
+// Updates the (total) score for the player with id userID by their round score.
 func (r *Room) updatePlayerScore(userID string, score int) error {
 	return updateRedisSortedSet(r.Ctx, r.getLeaderboardKey(), userID, score)
 }
 
+// Deletes a player from the leaderboard.
 func (r *Room) deletePlayerFromLeaderboard(userID string) error {
 	return deleteFromRedisSortedSet(r.Ctx, r.getLeaderboardKey(), userID)
 }
 
+// Gets the total number of players.
 func (r *Room) getPlayerCount() int {
 	return len(r.Players)
 }
 
+// Gets the number of unique players who are ready for the next game event.
 func (r *Room) getReadyCount() int {
 	return r.ReadyCount
 }
 
+// Increments the ready count if the userID has not already been marked as ready.
 func (r *Room) incrReadyCount(userID string) error {
 	status, err := getRedisHash(r.Ctx, userID, string(ready))
 	if err != nil {
@@ -150,6 +167,7 @@ func (r *Room) incrReadyCount(userID string) error {
 	return nil
 }
 
+// Resets the ready count back to zero.
 func (r *Room) resetReadyCount() {
 	r.Mutex.Lock()
 	r.ReadyCount = 0
@@ -159,10 +177,13 @@ func (r *Room) resetReadyCount() {
 	r.Mutex.Unlock()
 }
 
+// Retrieves the current question for the round.
 func (r *Room) getQuestion() (string, error) {
 	return getRedisHash(r.Ctx, r.ID, "question")
 }
 
+// Generates a new question for the next round.
+// Makes an OpenAI request, so should be called in a separate goroutine.
 func (r *Room) generateQuestion() (string, error) {
 	question, err := generateAIQuestion(r.Ctx)
 	if err != nil {
@@ -171,16 +192,20 @@ func (r *Room) generateQuestion() (string, error) {
 	return question, setRedisHash(r.Ctx, r.ID, "question", question)
 }
 
+// Backs up the room state to the database.
+// Used when a player reconnects to the room.
 func (r *Room) backupRoomState(template []byte) error {
 	return setRedisHash(r.Ctx, r.ID, string(roomBackup), template)
 }
 
+// Updates the room state to match the current game event.
 func (r *Room) updateRoomState(newState roomState) {
 	r.Mutex.Lock()
 	r.State = newState
 	r.Mutex.Unlock()
 }
 
+// Reads client events from the pub/sub channel. Dispatches the appropriate event handler.
 func (r *Room) readPump() {
 	defer r.Pubsub.Close()
 
@@ -201,7 +226,7 @@ func (r *Room) readPump() {
 				go r.addUser(psEvent.Sender, psEvent.Msg)
 			case reconnect:
 				go r.connectUser(psEvent.Sender, psEvent.Msg)
-			case userReady:
+			case ready:
 				go r.handleReadySignal(psEvent.Msg)
 			case getPicture:
 				go r.handleUserSubmission(psEvent.Sender)
@@ -282,6 +307,8 @@ func (r *Room) addUser(userID, username string) {
 	}
 }
 
+// Handles a ready signal from a client.
+// If enough players are ready, the room state is updated to the next game event.
 func (r *Room) handleReadySignal(userID string) {
 	err := r.incrReadyCount(userID)
 	if err != nil {
@@ -291,6 +318,7 @@ func (r *Room) handleReadySignal(userID string) {
 	r.checkRoomState()
 }
 
+// Sends the HTML for the game page to all clients via the pub/sub channel.
 func (r *Room) sendGamePage() {
 	question, err := r.getQuestion()
 	if err != nil {
@@ -329,6 +357,8 @@ func (r *Room) sendGamePage() {
 	r.updateRoomState(playing)
 }
 
+// Part of the user disconnection handling sequence.
+// This part is agnostic to whether the disconnection was expected or not.
 func (r *Room) disconnectUser(userID string) {
 	r.deletePlayerFromRoom(userID)
 	err := r.deletePlayerFromLeaderboard(userID)
@@ -337,7 +367,7 @@ func (r *Room) disconnectUser(userID string) {
 	}
 
 	if r.getPlayerCount() == 0 {
-		err := roomRepo.DeleteRoom(r.Ctx, r.ID)
+		err := roomRepo.deleteRoom(r.Ctx, r.ID)
 		if err != nil {
 			log.Printf("Error deleting room from roomList: %v", err)
 		}
@@ -346,6 +376,7 @@ func (r *Room) disconnectUser(userID string) {
 	r.checkRoomState()
 }
 
+// Handles a user submitted picture by updating the ready count.
 func (r *Room) handleUserSubmission(userID string) {
 	err := r.incrReadyCount(userID)
 	if err != nil {
@@ -355,6 +386,7 @@ func (r *Room) handleUserSubmission(userID string) {
 	r.checkRoomState()
 }
 
+// Sends the HTML for the voting page to all clients via the pub/sub channel.
 func (r *Room) sendVotingPage() {
 	answers := make([]string, 0, r.getPlayerCount())
 	players := r.getPlayers()
@@ -401,6 +433,7 @@ func (r *Room) sendVotingPage() {
 	r.updateRoomState(voting)
 }
 
+// Records a player's vote.
 func (r *Room) handleVote(userID, voteURL string) {
 	err := r.incrReadyCount(userID)
 	if err != nil {
@@ -415,6 +448,7 @@ func (r *Room) handleVote(userID, voteURL string) {
 	r.checkRoomState()
 }
 
+// Counts all the votes for each picture and updates each player's total score.
 func (r *Room) countVotes() {
 	scores := make(map[string]int)
 	players := r.getPlayers()
@@ -453,6 +487,7 @@ func (r *Room) countVotes() {
 	r.sendLeaderboard(scores, lb)
 }
 
+// Sends the HTML for the leaderboard page to all clients via the pub/sub channel.
 func (r *Room) sendLeaderboard(scores map[string]int, lb map[string]int) {
 	lpd := &leaderboardPageData{Scores: scores, Leaderboard: lb}
 	leaderboardPageBytes, err := generateLeaderboardPage(lpd)

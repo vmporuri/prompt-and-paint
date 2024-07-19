@@ -9,10 +9,12 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
+// A data structure that holds a response from the ChatGPT API.
 type response struct {
 	Prompt string `json:"prompt"`
 }
 
+// Constant parameters for the ChatGPT API.
 const (
 	maxTokens   = 75
 	temperature = 1
@@ -21,6 +23,7 @@ const (
 	stream      = false
 )
 
+// A fixed prompt to use to generate new scenarios.
 const questionPrompt = `
 	Give me one funny, 'Apples to Apples' style prompt.
 	Your response should be valid JSON with the field 'prompt' with no markdown.
@@ -34,6 +37,8 @@ var (
 	}
 )
 
+// Generates a new game scenario via the OpenAI API.
+// Errors if the OpenAI API errors.
 func generateAIQuestion(ctx context.Context) (string, error) {
 	req := openai.ChatCompletionRequest{
 		Model:       openai.GPT4Turbo,
@@ -58,6 +63,8 @@ func generateAIQuestion(ctx context.Context) (string, error) {
 	return responseJSON.Prompt, nil
 }
 
+// Generates a picture from the provided prompt.
+// Errors if the OpenAI API errors.
 func generateAIPicture(ctx context.Context, prompt string) (string, error) {
 	req := openai.ImageRequest{
 		Prompt:         prompt,
