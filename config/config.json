@@ -1,0 +1,13 @@
+{
+  "server": {
+    "host": "localhost",
+    "port": "3000"
+  },
+  "database": {
+    "redisHost": "redis",
+    "redisPort": "6379"
+  },
+  "security": {
+    "allowedOrigins": ["http://localhost:3000", "http://localhost:8080"]
+  }
+}

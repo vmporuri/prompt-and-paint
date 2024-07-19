@@ -1,37 +1,39 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"os"
-
-	"gopkg.in/yaml.v3"
 )
 
 // Holds the configuration information for the Go server.
 type Config struct {
 	Server struct {
-		Port string `yaml:"port"`
-		Host string `yaml:"host"`
-	} `yaml:"server"`
+		Port string `json:"port"`
+		Host string `json:"host"`
+	} `json:"server"`
 	Database struct {
-		RedisHost string `yaml:"redisHost"`
-		RedisPort string `yaml:"redisPort"`
-	} `yaml:"database"`
+		RedisHost string `json:"redisHost"`
+		RedisPort string `json:"redisPort"`
+	} `json:"database"`
+	Security struct {
+		AllowedOrigins []string `json:"allowedOrigins"`
+	} `json:"security"`
 }
 
 var cfg Config
 
 // Reads the configuration specified in the configuration file.
 func readConfig() {
-	f, err := os.Open("config/config.yml")
+	f, err := os.Open("config/config.json")
 	if err != nil {
-		log.Fatal("Could not read config file")
+		log.Fatalf("Error opening config file: %v", err)
 	}
 	defer f.Close()
 
-	decoder := yaml.NewDecoder(f)
+	decoder := json.NewDecoder(f)
 	err = decoder.Decode(&cfg)
 	if err != nil {
-		log.Fatal("Could not parse config file")
+		log.Fatalf("Error parsing config file: %v", err)
 	}
 }
