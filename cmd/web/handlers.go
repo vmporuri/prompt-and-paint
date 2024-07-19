@@ -9,7 +9,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// Registers the API endpoints for the server.
 func registerRoutes(mux *http.ServeMux) {
+	// Handles GET requests to the top level path.
 	mux.HandleFunc("/{$}", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			w.Header().Set("Allow", http.MethodGet)
@@ -43,6 +45,7 @@ func registerRoutes(mux *http.ServeMux) {
 		}
 	})
 
+	// Handles WebSocket upgrade requests to the game endpoint.
 	mux.HandleFunc("/game", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			w.Header().Set("Allow", http.MethodGet)

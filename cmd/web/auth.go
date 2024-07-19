@@ -13,6 +13,8 @@ const (
 	userIDClaim = "userID"
 )
 
+// Makes a JSON web token associated with userID.
+// Signed with the key stored in environment variable "KEY".
 func makeUserIDToken(userID string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		userIDClaim: userID,
@@ -20,6 +22,9 @@ func makeUserIDToken(userID string) (string, error) {
 	return token.SignedString([]byte(os.Getenv("KEY")))
 }
 
+// Parses the provided JSON web token and retrieves the associated userID.
+// Checks signature with the key stored in environment variable "KEY".
+// Errors if the MAC is incorrect or if the token does not have a userID field.
 func parseUserIDToken(tokenString string) (string, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {

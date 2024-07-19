@@ -8,6 +8,7 @@ import (
 	"github.com/vmporuri/prompt-and-paint/internal/game"
 )
 
+// Boots up the server.
 func main() {
 	mux := http.NewServeMux()
 	registerRoutes(mux)

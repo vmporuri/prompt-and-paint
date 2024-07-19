@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Holds the configuration information for the Go server.
 type Config struct {
 	Server struct {
 		Port string `yaml:"port"`
@@ -20,6 +21,7 @@ type Config struct {
 
 var cfg Config
 
+// Reads the configuration specified in the configuration file.
 func readConfig() {
 	f, err := os.Open("config/config.yml")
 	if err != nil {
